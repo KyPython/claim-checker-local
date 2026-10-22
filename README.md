@@ -1,6 +1,6 @@
 # claim-checker-local
 
-**Status: Implemented — mock tests passing; live Gemma endpoint test PENDING owner opt-in.**
+**Status: Implementation committed; mock results reported by coding agent (not independently rerun here). Live Gemma call, factual-evidence review, and final submission approval PENDING. DO NOT record a verdict demo as independently verified yet.**
 
 A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** via OpenRouter, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
 
@@ -97,14 +97,16 @@ The evaluation suite (`evals/run_eval.py`) includes:
 - **11 error-handling tests**: HTTP 401/402/429/500, timeout, unreachable, malformed JSON, wrong model, missing fields, fabricated source IDs, confident verdict without evidence
 - **4 input validation tests**: blank claim, too-long claim, null claim, missing API key
 
-**Mock test results (23/23 passing):**
+**Coding-agent-reported mock results (23/23; independent rerun still required):**
 ```
 Mock verdict cases: 8/8 passed
 Validation tests: 15/15 passed
 Total: 23/23 passed
 ```
 
-Live Gemma test results: **PENDING** — requires owner opt-in with a verified free API key.
+Live Gemma test results: **PENDING** — requires owner opt-in with a verified free API key. Do not represent the mock verdict outputs as proof of runtime inference or factual accuracy.
+
+**Known release blockers (2026-10-22 source review):** provider response model metadata may be missing or omit `:free` while current validator still accepts it; free-route billing must be confirmed independently, and actual source provenance needs review. Test case 06 ('The ocean contains most of Earth's water') is literally true according to NOAA, yet its expected label is MISLEADING; resolve the evaluation oracle before treating an 8/8 score as evidence of accuracy. See issue #1 for full review gate.
 
 ## Fixed model and provider
 
@@ -149,7 +151,7 @@ See **[GitHub issue #1 — SPEC v2](https://github.com/KyPython/claim-checker-lo
 - **This implementation**: New and distinct, begun October 22, 2026 using cloud-served Gemma, during the contest window (Oct 19–25).
 - **Implementation agent**: Claude Opus 4.6 (Thinking) via Antigravity — agent-generated code, attributed here.
 - **Spec authoring**: ChatGPT as AI-authored documentation (requirements.md, design.md, tasks.md).
-- **Owner review and approval**: Human — independently reviewed and authorized.
+- **Owner review and approval**: Owner committed the agent's work; independent human review of these exact source excerpts, security conditions and final results is **not yet evidenced**.
 
 ## Challenge deadline
 
