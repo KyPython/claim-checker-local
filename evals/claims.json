@@ -1,6 +1,6 @@
 {
   "schema": "claim-evidence/v1",
-  "description": "Eight candidate cases improved via assistant checks of official sources October 22, but human source/case review is NOT established; all provenance flags false. Mocks test contracts, not factual accuracy.",
+  "description": "Eight candidate source-linked cases including TRUE, FALSE, MISLEADING and UNVERIFIABLE. Assistant checked source URLs, but human source/oracle review is NOT established; all provenance_reviewed flags false. Mocks test contracts, not factual accuracy.",
   "cases": [
     {
       "id": "case-01",
@@ -48,14 +48,14 @@
     },
     {
       "id": "case-05",
-      "text": "Everyone in the world has access to clean drinking water.",
+      "text": "WHO reported 6 billion people used safely managed drinking-water services in 2022, so nearly everyone had access.",
       "evidence_ids": [
         "source-05"
       ],
-      "expected_verdict": "FALSE",
+      "expected_verdict": "MISLEADING",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "WHO says 2.2 billion people lacked safely managed drinking-water services in 2022, contradicting universal access. Owner review pending."
+      "rationale_for_expected": "WHO confirms the 6-billion figure, but also states 2.2 billion people lacked safely managed services in 2022. The extrapolation to nearly everyone omits a materially large uncovered population; interpretation of the word 'nearly' still requires human adjudication."
     },
     {
       "id": "case-06",
