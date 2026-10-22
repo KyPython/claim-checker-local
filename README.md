@@ -99,10 +99,10 @@ HTTP failures are never disguised as successful `UNVERIFIABLE` verdicts. Exit co
 
 The evaluation suite (`evals/run_eval.py`) includes:
 
-- **8 candidate verdict cases**: 3× TRUE, 3× FALSE, 2× UNVERIFIABLE. The disputed ocean case was corrected to TRUE. All eight `provenance_reviewed` flags remain false pending actual review.
+- **8 candidate verdict cases**: 3× TRUE, 2× FALSE, 1× MISLEADING, 2× UNVERIFIABLE. The disputed ocean case was corrected to TRUE. All eight `provenance_reviewed` flags remain false pending actual review.
 - **11 error-handling tests**: HTTP 401/402/429/500, timeout, unreachable, malformed JSON, wrong model, missing fields, fabricated source IDs, confident verdict without evidence
 - **4 input validation tests**: blank claim, too-long claim, null claim, missing API key
-- **11 new strict-model/provenance/error-sanitization contract tests** staged for independent execution (not yet run)
+- **12 new strict-model/provenance/error-sanitization contract tests** staged for independent execution (not yet run)
 
 **Historical coding-agent-reported mock results on pre-hardening main (23/23; independent rerun still required; NOT proof of factual accuracy):**
 ```
