@@ -8,6 +8,14 @@ A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Ch
 
 See **[GitHub issue #1 — SPEC v2](https://github.com/KyPython/claim-checker-local/issues/1)** for the complete implementation prompt, architecture, security/privacy conditions, A1–A12 acceptance tests, golden claim evaluation contract, demo requirements and submission gate.
 
+## Kiro-style implementation specifications
+
+- [Requirements (R01–R12)](specs/claim-checker-local/requirements.md) — exact behavior, evidence, privacy and eligibility boundaries.
+- [Design](specs/claim-checker-local/design.md) — input/output schemas, fixed Gemma provider, trust boundaries and errors.
+- [Tasks](specs/claim-checker-local/tasks.md) — staged build, mocked vs live verification, owner sign-off and DEV demonstration.
+
+A coding agent should read these three files **and issue #1** before modifying any application code. If they conflict, stop and request an owner-approved spec correction; never use old Ollama instructions.
+
 ## Required runtime (not yet implemented)
 
 - **Python 3.11+**; no local AI download, no Ollama, no offline model run.
