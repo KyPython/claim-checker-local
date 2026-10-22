@@ -227,6 +227,9 @@ def validate_provider_response(
     Raises ResponseValidationError or ModelMismatchError.
     Returns the validated card dict.
     """
+    if not isinstance(raw_response, dict):
+        raise MalformedResponseError("Provider response is not a JSON object.")
+
     # Do not infer free-tier identity by stripping :free or trusting absent metadata.
     # Some providers might report an alias; fail closed until independently verified.
     returned_model = raw_response.get("model")
