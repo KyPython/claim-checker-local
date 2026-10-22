@@ -96,7 +96,8 @@ class RealHttpClient:
                 err_body = ""
             raise ProviderHTTPError(code, err_body) from exc
         except urllib.error.URLError as exc:
-            raise ProviderUnreachableError(str(exc.reason)) from exc
+            # Network errors can contain user-controlled URLs or environment details.
+            raise ProviderUnreachableError("Unable to reach inference provider.") from exc
         except TimeoutError as exc:
             raise ProviderTimeoutError() from exc
 
@@ -219,20 +220,19 @@ def build_user_message(claim: str, evidence: list[dict[str, Any]] | None) -> str
 def validate_provider_response(
     raw_response: dict[str, Any],
     supplied_evidence_ids: set[str],
+    reviewed_evidence_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Extract and validate the verdict card from the provider response.
 
     Raises ResponseValidationError or ModelMismatchError.
     Returns the validated card dict.
     """
-    # Check model field in provider metadata
-    returned_model = raw_response.get("model", "")
-    # OpenRouter may return the model with or without the :free suffix;
-    # we check that the base matches and it's not a completely different model.
-    if returned_model and not _model_matches(returned_model):
+    # Do not infer free-tier identity by stripping :free or trusting absent metadata.
+    # Some providers might report an alias; fail closed until independently verified.
+    returned_model = raw_response.get("model")
+    if not _model_matches(returned_model):
         raise ModelMismatchError(
-            f"Provider reported model '{returned_model}', "
-            f"expected '{FIXED_MODEL}'"
+            "Provider response did not attest the exact configured free Gemma model."
         )
 
     # Extract message content
@@ -259,9 +259,8 @@ def validate_provider_response(
     try:
         card = json.loads(cleaned)
     except json.JSONDecodeError as exc:
-        raise MalformedResponseError(
-            f"Model output is not valid JSON: {exc}\nRaw: {content[:300]}"
-        ) from exc
+        # Never echo raw model output: it can contain private claim/evidence text.
+        raise MalformedResponseError("Model output is not valid JSON.") from exc
 
     if not isinstance(card, dict):
         raise ResponseValidationError("Model output is not a JSON object.")
@@ -275,7 +274,7 @@ def validate_provider_response(
     verdict = card["verdict"]
     if not isinstance(verdict, str) or verdict.upper() not in VALID_VERDICTS:
         raise ResponseValidationError(
-            f"Invalid verdict '{verdict}'. Must be one of: {sorted(VALID_VERDICTS)}"
+            "Invalid verdict. Expected a supported verdict enum."
         )
     card["verdict"] = verdict.upper()
 
@@ -304,23 +303,22 @@ def validate_provider_response(
                 f"Supplied IDs: {sorted(supplied_evidence_ids)}"
             )
 
-    # Grounding rule: if model returns confident verdict but no evidence, override
-    if card["verdict"] in ("TRUE", "FALSE", "MISLEADING") and not supplied_evidence_ids:
-        # Model should not give a factual verdict without supplied evidence
-        raise ResponseValidationError(
-            f"Model returned '{card['verdict']}' but no evidence was supplied. "
-            "Without reviewed evidence, only UNVERIFIABLE is valid."
-        )
+    # Evidence IDs alone do not establish reviewed provenance or even that the model
+    # cited the evidence. This is a safety gate, NOT semantic entailment verification.
+    if card["verdict"] in ("TRUE", "FALSE", "MISLEADING"):
+        reviewed = reviewed_evidence_ids or set()
+        if not evidence_ids or not set(evidence_ids).issubset(reviewed):
+            raise ResponseValidationError(
+                "A confident verdict requires cited, explicitly reviewed evidence. "
+                "Otherwise the model must abstain with UNVERIFIABLE."
+            )
 
     return card
 
 
-def _model_matches(returned: str) -> bool:
-    """Check that the returned model tag plausibly matches FIXED_MODEL."""
-    # Normalize: strip :free suffix for comparison
-    base_expected = FIXED_MODEL.replace(":free", "")
-    base_returned = returned.replace(":free", "")
-    return base_returned == base_expected
+def _model_matches(returned: Any) -> bool:
+    """Require an exact, nonempty free model ID; never normalize billing suffixes."""
+    return isinstance(returned, str) and returned == FIXED_MODEL
 
 
 # ── Core check function ─────────────────────────────────────────────
@@ -357,8 +355,18 @@ def check_claim(
         client = RealHttpClient()
 
     supplied_ids: set[str] = set()
+    reviewed_ids: set[str] = set()
     if evidence:
         supplied_ids = {e["id"] for e in evidence}
+        reviewed_ids = {
+            e["id"] for e in evidence
+            if e.get("verified_by_human") is True
+            and all(isinstance(e.get(k), str) and e[k].strip()
+                    for k in ("id", "title", "publisher", "excerpt", "url"))
+            and e["url"].startswith("https://")
+        }
+        # Flags are user declarations, not independent authentication of source
+        # relevance, integrity, recency, or truth.
 
     user_msg = build_user_message(claim, evidence)
 
@@ -369,6 +377,7 @@ def check_claim(
             {"role": "user", "content": user_msg},
         ],
         "temperature": 0,
+        "max_tokens": 700,
     }
 
     headers = {
@@ -381,7 +390,7 @@ def check_claim(
         OPENROUTER_URL, headers, request_body, TIMEOUT_SECONDS
     )
 
-    card = validate_provider_response(raw_response, supplied_ids)
+    card = validate_provider_response(raw_response, supplied_ids, reviewed_ids)
 
     # Code-controlled fields (not model-asserted)
     card["claim"] = claim
@@ -508,8 +517,8 @@ def main(argv: list[str] | None = None, client: HttpClient | None = None) -> int
             msg = f"REQUEST FAILED: HTTP {status} from provider."
         print(msg, file=sys.stderr)
         return 1
-    except ProviderUnreachableError as exc:
-        print(f"REQUEST FAILED: Provider unreachable — {exc}", file=sys.stderr)
+    except ProviderUnreachableError:
+        print("REQUEST FAILED: Provider unreachable.", file=sys.stderr)
         return 1
     except ProviderTimeoutError:
         print(
