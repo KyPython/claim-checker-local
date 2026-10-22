@@ -29,6 +29,10 @@ class ReleaseContractTests(unittest.TestCase):
     def test_fixed_model_has_free_suffix(self):
         self.assertEqual(claimcheck.FIXED_MODEL, "google/gemma-4-26b-a4b-it:free")
 
+    def test_non_object_provider_body_is_rejected(self):
+        with self.assertRaises(claimcheck.MalformedResponseError):
+            claimcheck.validate_provider_response([], set())
+
     def test_missing_model_metadata_fails_closed(self):
         response = provider_reply()
         del response["model"]
