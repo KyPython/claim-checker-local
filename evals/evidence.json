@@ -9,7 +9,7 @@
       "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html",
       "date": "2024-01-01",
       "excerpt": "Earth is the third planet from the Sun, at a mean distance of 149.6 million km (1.0 AU).",
-      "verified_by_human": true,
+      "verified_by_human": false,
       "reviewer_note": "Standard NASA planetary fact sheet, publicly accessible."
     },
     {
@@ -19,7 +19,7 @@
       "url": "https://www.iau.org/static/resolutions/Resolution_GA26-5-6.pdf",
       "date": "2006-08-24",
       "excerpt": "The IAU resolves that Pluto is a 'dwarf planet' by the above definition and is recognized as the prototype of a new category of Trans-Neptunian Objects.",
-      "verified_by_human": true,
+      "verified_by_human": false,
       "reviewer_note": "Official IAU resolution text, publicly available PDF."
     },
     {
@@ -29,7 +29,7 @@
       "url": "https://airandspace.si.edu/explore/stories/apollo-11-mission-overview",
       "date": "2019-07-01",
       "excerpt": "On July 20, 1969, astronauts Neil Armstrong and Buzz Aldrin landed the Apollo 11 Lunar Module Eagle on the Moon while Michael Collins orbited above in the Command Module.",
-      "verified_by_human": true,
+      "verified_by_human": false,
       "reviewer_note": "Smithsonian institution overview of Apollo 11, publicly accessible."
     },
     {
@@ -39,7 +39,7 @@
       "url": "https://www.britannica.com/topic/Great-Wall-of-China",
       "date": "2024-01-01",
       "excerpt": "Contrary to popular belief, the Great Wall of China is not visible to the unaided eye from space. Astronauts have reported that it is very difficult to see and generally not distinguishable.",
-      "verified_by_human": true,
+      "verified_by_human": false,
       "reviewer_note": "Britannica article addresses the common misconception directly."
     },
     {
@@ -49,7 +49,7 @@
       "url": "https://www.who.int/news-room/fact-sheets/detail/drinking-water",
       "date": "2023-09-01",
       "excerpt": "In 2022, 2.2 billion people still lacked safely managed drinking water services, including 703 million without even a basic water service.",
-      "verified_by_human": true,
+      "verified_by_human": false,
       "reviewer_note": "WHO fact sheet with specific statistics on global water access."
     },
     {
@@ -59,7 +59,7 @@
       "url": "https://oceanservice.noaa.gov/facts/oceanwater.html",
       "date": "2023-01-01",
       "excerpt": "The ocean holds about 1.335 billion cubic kilometers (321 million cubic miles) of water, which is about 97.5% of all water on Earth.",
-      "verified_by_human": true,
+      "verified_by_human": false,
       "reviewer_note": "NOAA public fact page on ocean volume."
     }
   ]
