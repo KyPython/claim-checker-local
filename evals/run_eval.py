@@ -141,9 +141,9 @@ MOCK_RESPONSES: dict[str, dict[str, Any]] = {
         ["source-05"],
     ),
     "The ocean contains most of Earth's water": _make_mock_response(
-        "MISLEADING",
-        "While technically accurate (the ocean holds about 97.5% of Earth's water per NOAA), saying 'most' without noting it is saltwater omits material context about accessible freshwater.",
-        "Consult NOAA or USGS water distribution data with freshwater breakdown.",
+        "TRUE",
+        "NOAA states the oceans contain about 97.5% of Earth's water. The literal claim is supported.",
+        "Consult NOAA or USGS measurements for water distribution.",
         ["source-06"],
     ),
     "Bananas cure cancer": _make_mock_response(
@@ -352,6 +352,21 @@ def run_mock_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
             evidence = [evidence_by_id[eid] for eid in case_evidence_ids if eid in evidence_by_id]
 
             try:
+                unreviewed = bool(evidence) and not all(
+                    e.get("verified_by_human") is True for e in evidence
+                )
+                if unreviewed:
+                    # Test the refusal, not the truth of an unreviewed oracle.
+                    try:
+                        claimcheck.check_claim(
+                            claim_text, evidence=evidence, client=mock_client
+                        )
+                    except claimcheck.ResponseValidationError:
+                        passed += 1
+                        print(f"  [{case_id}] PASS (confident verdict blocked: unreviewed source)")
+                        continue
+                    raise AssertionError("Confident verdict accepted with unreviewed source")
+
                 card = claimcheck.check_claim(
                     claim_text,
                     evidence=evidence if evidence else None,
@@ -386,7 +401,7 @@ def run_mock_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
                 print(f"  [{case_id}] ERROR: {exc}")
                 total += 0  # already counted
 
-        print(f"\nMock verdict cases: {passed}/{total} passed")
+        print(f"\nMock contract cases: {passed}/{total} passed (not factual accuracy)")
         print(f"Mock HTTP calls: {mock_client.call_count}")
 
         # Additional validation tests
@@ -529,6 +544,13 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
 
         evidence = [evidence_by_id[eid] for eid in case_evidence_ids if eid in evidence_by_id]
 
+        if not case.get("provenance_reviewed", False) or any(
+            e.get("verified_by_human") is not True for e in evidence
+        ):
+            failures.append(f"{case_id}: BLOCKED (source/case review pending)")
+            print(f"  [{case_id}] BLOCKED: source/case review pending; no API call")
+            continue
+
         print(f"\n  [{case_id}] Sending: {claim_text[:60]}...")
 
         try:
@@ -577,7 +599,7 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
             failures.append(f"{case_id}: unexpected {type(exc).__name__}: {exc}")
             print(f"    ERROR: {type(exc).__name__}: {exc}")
 
-    print(f"\nLive verdict cases: {passed}/{total} passed")
+    print(f"\nLive verdict cases: {passed}/{total} passed (reviewed cases only)")
     print(f"Live API calls made: {call_count}")
     print(f"Model: {claimcheck.FIXED_MODEL}")
     return passed, total, failures
