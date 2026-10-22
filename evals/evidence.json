@@ -1,67 +1,63 @@
 {
   "schema": "claim-evidence/v1",
-  "description": "Curated evidence excerpts for claim-checker-local evaluation. Each excerpt is sourced from a specific, identified publication. Evidence must be independently reviewed before use in confident verdicts.",
+  "description": "Six candidate authoritative evidence excerpts with improved source links, assistant-checked Oct 22, 2026. No independent human source review claimed.",
   "evidence": [
     {
       "id": "source-01",
       "publisher": "NASA",
-      "title": "Earth Fact Sheet",
-      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html",
-      "date": "2024-01-01",
-      "excerpt": "Earth is the third planet from the Sun, at a mean distance of 149.6 million km (1.0 AU).",
+      "title": "About the Planets",
+      "url": "https://science.nasa.gov/solar-system/planets/",
+      "excerpt": "Earth is the third planet from the Sun.",
       "verified_by_human": false,
-      "reviewer_note": "Standard NASA planetary fact sheet, publicly accessible."
+      "reviewer_note": "Source wording checked against official NASA page by assistant Oct 22; personal human review NOT established."
     },
     {
       "id": "source-02",
       "publisher": "International Astronomical Union",
-      "title": "IAU 2006 General Assembly Resolution 5A",
-      "url": "https://www.iau.org/static/resolutions/Resolution_GA26-5-6.pdf",
+      "title": "2006 General Assembly — Resolutions 5A and 6A",
+      "url": "https://www.iau.org/IAU/Iau/News/PR2006/iau-2006-general-assembly-resolution-votes.aspx",
       "date": "2006-08-24",
-      "excerpt": "The IAU resolves that Pluto is a 'dwarf planet' by the above definition and is recognized as the prototype of a new category of Trans-Neptunian Objects.",
+      "excerpt": "Resolution 6A explicitly categorizes Pluto as a dwarf planet; Resolution 5A defines distinct planet and dwarf-planet categories.",
       "verified_by_human": false,
-      "reviewer_note": "Official IAU resolution text, publicly available PDF."
+      "reviewer_note": "Official IAU page supersedes inaccessible legacy PDF; source cross-checked by assistant, not by owner."
     },
     {
       "id": "source-03",
-      "publisher": "Smithsonian National Air and Space Museum",
-      "title": "Apollo 11 Mission Overview",
-      "url": "https://airandspace.si.edu/explore/stories/apollo-11-mission-overview",
-      "date": "2019-07-01",
-      "excerpt": "On July 20, 1969, astronauts Neil Armstrong and Buzz Aldrin landed the Apollo 11 Lunar Module Eagle on the Moon while Michael Collins orbited above in the Command Module.",
+      "publisher": "NASA",
+      "title": "Astronaut Neil A. Armstrong",
+      "url": "https://www.nasa.gov/image-article/astronaut-neil-armstrong/",
+      "date": "2013-08-05",
+      "excerpt": "Armstrong was the first person to walk on the Moon on July 20, 1969 as commander of Apollo 11.",
       "verified_by_human": false,
-      "reviewer_note": "Smithsonian institution overview of Apollo 11, publicly accessible."
+      "reviewer_note": "Official NASA article replaces inaccessible Smithsonian path. Assistant source check, NOT human attestation."
     },
     {
       "id": "source-04",
-      "publisher": "Encyclopaedia Britannica",
-      "title": "Great Wall of China",
-      "url": "https://www.britannica.com/topic/Great-Wall-of-China",
-      "date": "2024-01-01",
-      "excerpt": "Contrary to popular belief, the Great Wall of China is not visible to the unaided eye from space. Astronauts have reported that it is very difficult to see and generally not distinguishable.",
+      "publisher": "NASA Johnson Space Center",
+      "title": "Earth Observations FAQ",
+      "url": "https://eol.jsc.nasa.gov/faq/",
+      "excerpt": "The Great Wall is not visible to the naked eye from orbit; astronauts reported being unable to see it.",
       "verified_by_human": false,
-      "reviewer_note": "Britannica article addresses the common misconception directly."
+      "reviewer_note": "Official NASA FAQ on Great Wall visibility from space. Assistant-reviewed page; owner review still pending."
     },
     {
       "id": "source-05",
       "publisher": "World Health Organization",
-      "title": "Drinking-water key facts",
+      "title": "Drinking-water fact sheet",
       "url": "https://www.who.int/news-room/fact-sheets/detail/drinking-water",
-      "date": "2023-09-01",
-      "excerpt": "In 2022, 2.2 billion people still lacked safely managed drinking water services, including 703 million without even a basic water service.",
+      "date": "2023-09-13",
+      "excerpt": "In 2022, 2.2 billion people lacked safely managed drinking-water services worldwide.",
       "verified_by_human": false,
-      "reviewer_note": "WHO fact sheet with specific statistics on global water access."
+      "reviewer_note": "WHO page confirms 2.2 billion without safely managed services. Removed outdated '703 million without basic' clause. Owner review pending."
     },
     {
       "id": "source-06",
       "publisher": "National Ocean Service (NOAA)",
       "title": "How much water is in the ocean?",
       "url": "https://oceanservice.noaa.gov/facts/oceanwater.html",
-      "date": "2023-01-01",
-      "excerpt": "The ocean holds about 1.335 billion cubic kilometers (321 million cubic miles) of water, which is about 97.5% of all water on Earth.",
+      "excerpt": "About 97 percent of Earth's water is in the ocean.",
       "verified_by_human": false,
-      "reviewer_note": "NOAA public fact page on ocean volume."
+      "reviewer_note": "NOAA page states about 97%, not the previously attributed 97.5%. Assistant verified page; human review pending."
     }
   ]
 }
-
