@@ -1,11 +1,13 @@
 {
   "schema": "claim-evidence/v1",
-  "description": "Eight golden evaluation cases for claim-checker-local. Cases cover TRUE, FALSE, MISLEADING, and UNVERIFIABLE verdicts. Each case documents its evidence dependencies, expected verdict, and whether honest abstention (UNVERIFIABLE) is acceptable.",
+  "description": "Eight candidate claim-evaluation cases. Provenance false is a hard block on factual pass claims and live sourced checks; offline mocks verify input/response contracts, not factual accuracy.",
   "cases": [
     {
       "id": "case-01",
       "text": "Earth is the third planet from the Sun.",
-      "evidence_ids": ["source-01"],
+      "evidence_ids": [
+        "source-01"
+      ],
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
@@ -14,7 +16,9 @@
     {
       "id": "case-02",
       "text": "Pluto is classified as a full planet by the International Astronomical Union.",
-      "evidence_ids": ["source-02"],
+      "evidence_ids": [
+        "source-02"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
@@ -23,7 +27,9 @@
     {
       "id": "case-03",
       "text": "Neil Armstrong was the first person to walk on the Moon in 1969.",
-      "evidence_ids": ["source-03"],
+      "evidence_ids": [
+        "source-03"
+      ],
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
@@ -32,7 +38,9 @@
     {
       "id": "case-04",
       "text": "The Great Wall of China is easily visible from space with the naked eye.",
-      "evidence_ids": ["source-04"],
+      "evidence_ids": [
+        "source-04"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
@@ -41,7 +49,9 @@
     {
       "id": "case-05",
       "text": "Everyone in the world has access to clean drinking water.",
-      "evidence_ids": ["source-05"],
+      "evidence_ids": [
+        "source-05"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
@@ -50,11 +60,13 @@
     {
       "id": "case-06",
       "text": "The ocean contains most of Earth's water.",
-      "evidence_ids": ["source-06"],
-      "expected_verdict": "MISLEADING",
+      "evidence_ids": [
+        "source-06"
+      ],
+      "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "While technically accurate (97.5% per NOAA), saying 'most' without noting it's saltwater omits material context about potable water availability. Source-06 supports the basic fact but the claim could mislead about accessible freshwater. Model may also reasonably say TRUE since the literal statement is supported."
+      "rationale_for_expected": "NOAA estimates that oceans hold about 97.5% of Earth's water. This literal quantifier claim is true. Saltwater limitations are useful context but do not make the claim misleading by themselves. Actual source review remains pending."
     },
     {
       "id": "case-07",
@@ -76,4 +88,3 @@
     }
   ]
 }
-
