@@ -142,7 +142,7 @@ MOCK_RESPONSES: dict[str, dict[str, Any]] = {
     ),
     "The ocean contains most of Earth's water": _make_mock_response(
         "TRUE",
-        "NOAA states the oceans contain about 97.5% of Earth's water. The literal claim is supported.",
+        "NOAA states the oceans contain about 97% of Earth's water. The literal claim is supported.",
         "Consult NOAA or USGS measurements for water distribution.",
         ["source-06"],
     ),
