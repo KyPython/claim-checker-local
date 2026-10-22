@@ -1,6 +1,6 @@
 {
   "schema": "claim-evidence/v1",
-  "description": "Eight candidate claim-evaluation cases. Provenance false is a hard block on factual pass claims and live sourced checks; offline mocks verify input/response contracts, not factual accuracy.",
+  "description": "Eight candidate cases improved via assistant checks of official sources October 22, but human source/case review is NOT established; all provenance flags false. Mocks test contracts, not factual accuracy.",
   "cases": [
     {
       "id": "case-01",
@@ -11,7 +11,7 @@
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "NASA Earth Fact Sheet directly states Earth is the third planet from the Sun. Evidence source-01 directly supports this claim."
+      "rationale_for_expected": "NASA About the Planets explicitly identifies Earth as third from the Sun. Source-01 candidate; owner review pending."
     },
     {
       "id": "case-02",
@@ -22,7 +22,7 @@
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "IAU Resolution 5A (2006) reclassified Pluto as a 'dwarf planet', not a full planet. Evidence source-02 directly contradicts the claim."
+      "rationale_for_expected": "IAU Resolution 5A defines classes, Resolution 6A classifies Pluto as a dwarf planet, refuting full planet claim. Owner review pending."
     },
     {
       "id": "case-03",
@@ -33,7 +33,7 @@
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "Smithsonian Apollo 11 overview confirms Armstrong and Aldrin landed on the Moon on July 20, 1969. Armstrong was first to step out. Source-03 supports the claim."
+      "rationale_for_expected": "NASA Armstrong profile states he was the first to walk on the Moon on July 20, 1969, during Apollo 11. Owner review pending."
     },
     {
       "id": "case-04",
@@ -44,7 +44,7 @@
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "Britannica and astronaut reports confirm the Great Wall is NOT easily visible from space with the unaided eye. Evidence source-04 directly contradicts the claim."
+      "rationale_for_expected": "NASA JSC Earth Observations FAQ says Great Wall not visible to naked eye from orbit. Owner review pending."
     },
     {
       "id": "case-05",
@@ -55,7 +55,7 @@
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "WHO reports 2.2 billion people lacked safely managed drinking water in 2022. Evidence source-05 directly contradicts the universal access claim."
+      "rationale_for_expected": "WHO says 2.2 billion people lacked safely managed drinking-water services in 2022, contradicting universal access. Owner review pending."
     },
     {
       "id": "case-06",
@@ -66,7 +66,7 @@
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "NOAA estimates that oceans hold about 97.5% of Earth's water. This literal quantifier claim is true. Saltwater limitations are useful context but do not make the claim misleading by themselves. Actual source review remains pending."
+      "rationale_for_expected": "NOAA says about 97% of Earth's water is in oceans; directly supports literally true claim. Owner review pending."
     },
     {
       "id": "case-07",
