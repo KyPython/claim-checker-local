@@ -134,10 +134,10 @@ MOCK_RESPONSES: dict[str, dict[str, Any]] = {
         "Consult astronaut testimonies or space agency reports on Earth observation.",
         ["source-04"],
     ),
-    "Everyone in the world has access to clean drinking water": _make_mock_response(
-        "FALSE",
-        "WHO reports that 2.2 billion people still lacked safely managed drinking water services in 2022.",
-        "See WHO/UNICEF Joint Monitoring Programme data.",
+    "WHO reported 6 billion people used safely managed drinking-water services in 2022": _make_mock_response(
+        "MISLEADING",
+        "WHO gives this figure but also reports 2.2 billion without safely managed services. The nearly-everyone inference obscures that gap.",
+        "See WHO/UNICEF data and define the intended meaning of nearly everyone.",
         ["source-05"],
     ),
     "The ocean contains most of Earth's water": _make_mock_response(
