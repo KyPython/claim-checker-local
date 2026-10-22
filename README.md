@@ -1,6 +1,6 @@
 # claim-checker-local
 
-**Status: Implementation committed; mock results reported by coding agent (not independently rerun here). Live Gemma call, factual-evidence review, and final submission approval PENDING. DO NOT record a verdict demo as independently verified yet.**
+**Status: Release-hardening change under review; independent Python rerun and live free Gemma verification NOT YET DONE. Existing sourced fixtures remain unreviewed; final demo and DEV submission remain on HOLD. No CI, paid credits, deployment, or human publication is authorized by this branch.**
 
 A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** via OpenRouter, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
 
@@ -49,6 +49,12 @@ python3 evals/run_eval.py
 # Mock tests with verbose output
 python3 evals/run_eval.py -v
 
+# Additional release-contract regression tests (no network)
+python3 -m unittest discover -s evals -p 'test_*.py' -v
+
+# Compile check (no network)
+python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py
+
 # Live tests against real Gemma endpoint (requires API key, opt-in only)
 python3 evals/run_eval.py --live
 ```
@@ -59,8 +65,8 @@ python3 evals/run_eval.py --live
 2. **Evidence loading** (optional): Reads a curated JSON evidence file with reviewed source excerpts.
 3. **Prompt construction**: Builds a structured prompt with the claim as DATA (not instructions) and any supplied evidence.
 4. **Inference**: Sends exactly one HTTPS request to `https://openrouter.ai/api/v1/chat/completions` with the fixed model `google/gemma-4-26b-a4b-it:free`.
-5. **Response validation**: Strictly validates the response JSON: enum verdict, non-empty rationale, evidence IDs only from supplied sources, model tag verification.
-6. **Grounding rule**: Without reviewed evidence, only `UNVERIFIABLE` is accepted. The model cannot give a confident TRUE/FALSE/MISLEADING verdict based on training data alone.
+5. **Response validation**: Strictly validates the response JSON: enum verdict, non-empty rationale, evidence IDs only from supplied sources, **exact free model tag** (missing/stripped :free fails), and sanitization of malformed model-output errors.
+6. **Grounding rule**: A confident verdict requires cited evidence IDs with explicit `verified_by_human=true` source declarations and complete basic metadata. Unreviewed fixtures cannot produce a confident card. **Important:** local review flags are user assertions, not cryptographic or semantic proof that the evidence is true, timely, authentic or logically entails a verdict. Human source/adjudication checks remain necessary.
 
 ### Verdict semantics
 
@@ -93,20 +99,21 @@ HTTP failures are never disguised as successful `UNVERIFIABLE` verdicts. Exit co
 
 The evaluation suite (`evals/run_eval.py`) includes:
 
-- **8 golden verdict cases**: 2× TRUE, 3× FALSE, 1× MISLEADING, 2× UNVERIFIABLE
+- **8 candidate verdict cases**: 3× TRUE, 3× FALSE, 2× UNVERIFIABLE. The disputed ocean case was corrected to TRUE. All eight `provenance_reviewed` flags remain false pending actual review.
 - **11 error-handling tests**: HTTP 401/402/429/500, timeout, unreachable, malformed JSON, wrong model, missing fields, fabricated source IDs, confident verdict without evidence
 - **4 input validation tests**: blank claim, too-long claim, null claim, missing API key
+- **11 new strict-model/provenance/error-sanitization contract tests** staged for independent execution (not yet run)
 
-**Coding-agent-reported mock results (23/23; independent rerun still required):**
+**Historical coding-agent-reported mock results on pre-hardening main (23/23; independent rerun still required; NOT proof of factual accuracy):**
 ```
 Mock verdict cases: 8/8 passed
 Validation tests: 15/15 passed
 Total: 23/23 passed
 ```
 
-Live Gemma test results: **PENDING** — requires owner opt-in with a verified free API key. Do not represent the mock verdict outputs as proof of runtime inference or factual accuracy.
+Release branch tests: **NOT YET EXECUTED.** With existing review flags false, positive mock cases now verify that confident model responses are rejected, rather than certifying truth. Live Gemma test results: **PENDING** — requires owner opt-in with a verified free API key. Live golden sourced cases are blocked until the person reviewing them actually approves the evidence. Do not represent mock verdict outputs as runtime inference or factual accuracy.
 
-**Known release blockers (2026-10-22 source review):** provider response model metadata may be missing or omit `:free` while current validator still accepts it; free-route billing must be confirmed independently, and actual source provenance needs review. Test case 06 ('The ocean contains most of Earth's water') is literally true according to NOAA, yet its expected label is MISLEADING; resolve the evaluation oracle before treating an 8/8 score as evidence of accuracy. See issue #1 for full review gate.
+**Release blockers after code hardening (Oct 22):** Response model must now match the exact `:free` tag; a provider that reports a base-model alias (or omits the field) will cause a safe failure, and actual billing-route verification is still needed. Evidence human-review flags and claim provenance remain false. Case 06 was relabeled TRUE, but sources have not been independently human-adjudicated. The hardening changes and tests have NOT been run on the owner's Mac. Unrelated or contradictory evidence is not semantically proven safe by schema validation; human review remains essential. See issue #1. Draft DEV post (NOT to publish as-is): [docs/DEV_WEEK3_SUBMISSION_DRAFT.md](docs/DEV_WEEK3_SUBMISSION_DRAFT.md).
 
 ## Fixed model and provider
 
