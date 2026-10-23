@@ -2,12 +2,13 @@
 """
 claim-checker-local — AI-assisted claim triage CLI.
 
-Sends a single claim to cloud-hosted open-weight Gemma via OpenRouter
-and returns a preliminary verdict card.  This is NOT a source-grounded
+Sends a single claim to cloud-hosted open-weight Gemma using an explicit
+free-only provider/model selection and returns a preliminary verdict card.  This is NOT a source-grounded
 authoritative fact checker; it is an AI-generated preliminary assessment.
 
-Fixed model: google/gemma-4-26b-a4b-it:free
-Provider:    https://openrouter.ai/api/v1/chat/completions
+Default:    google/gemma-4-26b-a4b-it:free via OpenRouter
+Optional:   another pinned free Gemma or Google Gemini API hosted Gemma
+Providers:  explicitly selected; never automatically fail over
 
 Concept provenance: KyPython/claim-checker (private, idea Oct 17 2026).
 This is a distinct new implementation for the Oct 19–25 contest window.
@@ -26,7 +27,20 @@ from typing import Any, Protocol
 
 # ── Constants ────────────────────────────────────────────────────────
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-FIXED_MODEL = "google/gemma-4-26b-a4b-it:free"
+FIXED_MODEL = "google/gemma-4-26b-a4b-it:free"  # Default; retained for mock compatibility
+OPENROUTER_MODELS = frozenset({
+    FIXED_MODEL,
+    "google/gemma-4-31b-it:free",
+})
+GOOGLE_MODELS = frozenset({
+    "gemma-4-26b-a4b-it",
+    "gemma-4-31b-it",
+})
+GOOGLE_API_URLS = {
+    model: f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    for model in GOOGLE_MODELS
+}
+# Explicit Google mode only; no automatic provider switch, paid model or reroute.
 MAX_CLAIM_LEN = 2_000
 TIMEOUT_SECONDS = 30
 VALID_VERDICTS = frozenset({"TRUE", "FALSE", "MISLEADING", "UNVERIFIABLE"})
@@ -34,7 +48,7 @@ MAX_FIELD_LEN = 2_000  # cap for rationale / what_would_settle_it
 
 DISCLOSURE = (
     "AI-generated preliminary assessment. "
-    "Claim text was sent to a remote inference provider (OpenRouter). "
+    "Claim text was sent to a remote inference provider. "
     "This is not an authoritative fact-check."
 )
 
@@ -221,6 +235,7 @@ def validate_provider_response(
     raw_response: dict[str, Any],
     supplied_evidence_ids: set[str],
     reviewed_evidence_ids: set[str] | None = None,
+    expected_model: str = FIXED_MODEL,
 ) -> dict[str, Any]:
     """Extract and validate the verdict card from the provider response.
 
@@ -233,7 +248,7 @@ def validate_provider_response(
     # Do not infer free-tier identity by stripping :free or trusting absent metadata.
     # Some providers might report an alias; fail closed until independently verified.
     returned_model = raw_response.get("model")
-    if not _model_matches(returned_model):
+    if not _model_matches(returned_model, expected_model):
         raise ModelMismatchError(
             "Provider response did not attest the exact configured free Gemma model."
         )
@@ -318,9 +333,40 @@ def validate_provider_response(
     return card
 
 
-def _model_matches(returned: Any) -> bool:
-    """Require an exact, nonempty free model ID; never normalize billing suffixes."""
-    return isinstance(returned, str) and returned == FIXED_MODEL
+def _model_matches(returned: Any, expected: str = FIXED_MODEL) -> bool:
+    """Require exact expected model identity; never strip :free or accept aliases."""
+    return isinstance(returned, str) and returned == expected
+
+
+def select_route(provider: str, model: str | None) -> tuple[str, str, str]:
+    """Select an exact published free Gemma route before reading credentials."""
+    if provider == "openrouter":
+        chosen = model or FIXED_MODEL
+        if chosen not in OPENROUTER_MODELS:
+            raise ConfigurationError("Only explicitly approved free Gemma models are allowed.")
+        return chosen, OPENROUTER_URL, "OPENROUTER_API_KEY"
+    if provider == "google":
+        chosen = model or "gemma-4-26b-a4b-it"
+        if chosen not in GOOGLE_MODELS:
+            raise ConfigurationError("Only Google-hosted free Gemma 4 models are allowed.")
+        return chosen, GOOGLE_API_URLS[chosen], "GEMINI_API_KEY"
+    raise ConfigurationError("Provider must be 'openrouter' or 'google'.")
+
+
+def normalize_google_response(raw: dict[str, Any], expected_model: str) -> dict[str, Any]:
+    """Require Google generateContent modelVersion before adapting to shared card gate."""
+    if not isinstance(raw, dict):
+        raise MalformedResponseError("Google provider response is not a JSON object.")
+    if raw.get("modelVersion") != expected_model:
+        raise ModelMismatchError("Google provider did not attest the exact selected Gemma model.")
+    try:
+        parts = raw["candidates"][0]["content"]["parts"]
+        if len(parts) != 1 or not isinstance(parts[0]["text"], str):
+            raise ValueError("Expected one text response part.")
+        content = parts[0]["text"]
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise MalformedResponseError("Google response has no single usable text candidate.") from exc
+    return {"model": expected_model, "choices": [{"message": {"content": content}}]}
 
 
 # ── Core check function ─────────────────────────────────────────────
@@ -328,6 +374,8 @@ def check_claim(
     claim: str,
     evidence: list[dict[str, Any]] | None = None,
     client: HttpClient | None = None,
+    provider: str = "openrouter",
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Run a single claim check. Returns the complete verdict card.
 
@@ -346,12 +394,10 @@ def check_claim(
         MalformedResponseError, ResponseValidationError, ModelMismatchError:
             Response contract violations.
     """
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    selected_model, endpoint_url, key_name = select_route(provider, model)
+    api_key = os.environ.get(key_name, "").strip()
     if not api_key:
-        raise ConfigurationError(
-            "OPENROUTER_API_KEY environment variable is not set or empty. "
-            "Set it to your OpenRouter API key before running."
-        )
+        raise ConfigurationError(f"{key_name} is not set. Provide the selected provider's key privately.")
 
     if client is None:
         client = RealHttpClient()
@@ -372,32 +418,43 @@ def check_claim(
 
     user_msg = build_user_message(claim, evidence)
 
-    request_body: dict[str, Any] = {
-        "model": FIXED_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ],
-        "temperature": 0,
-        "max_tokens": 700,
-    }
+    if provider == "openrouter":
+        request_body: dict[str, Any] = {
+            "model": selected_model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": 0,
+            "max_tokens": 700,
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://github.com/KyPython/claim-checker-local",
+            "X-Title": "claim-checker-local",
+        }
+    else:
+        # Google native generateContent API, not unverified compatibility routing.
+        request_body = {
+            "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
+            "generationConfig": {"temperature": 0, "maxOutputTokens": 700},
+        }
+        headers = {"x-goog-api-key": api_key}
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "https://github.com/KyPython/claim-checker-local",
-        "X-Title": "claim-checker-local",
-    }
+    raw_response = client.post_json(endpoint_url, headers, request_body, TIMEOUT_SECONDS)
+    if provider == "google":
+        raw_response = normalize_google_response(raw_response, selected_model)
 
-    raw_response = client.post_json(
-        OPENROUTER_URL, headers, request_body, TIMEOUT_SECONDS
+    card = validate_provider_response(
+        raw_response, supplied_ids, reviewed_ids, expected_model=selected_model
     )
-
-    card = validate_provider_response(raw_response, supplied_ids, reviewed_ids)
 
     # Code-controlled fields (not model-asserted)
     card["claim"] = claim
-    card["model"] = FIXED_MODEL
+    card["model"] = selected_model
     card["disclosure"] = DISCLOSURE
+    card["provider"] = provider
 
     return card
 
@@ -464,6 +521,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to a JSON file with reviewed evidence excerpts.",
     )
     parser.add_argument(
+        "--provider", choices=("openrouter", "google"), default="openrouter",
+        help="Choose a provider explicitly; no automatic fallback (default: openrouter).",
+    )
+    parser.add_argument(
+        "--model", default=None,
+        help="Exact allowlisted free Gemma model ID for the selected provider.",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         dest="json_output",
@@ -501,14 +566,16 @@ def main(argv: list[str] | None = None, client: HttpClient | None = None) -> int
             return 1
 
     try:
-        card = check_claim(claim, evidence=evidence, client=client)
+        card = check_claim(
+            claim, evidence=evidence, client=client, provider=args.provider, model=args.model
+        )
     except ConfigurationError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 1
     except ProviderHTTPError as exc:
         status = exc.status_code
         if status == 401:
-            msg = "REQUEST FAILED: Unauthorized (401). Check your OPENROUTER_API_KEY."
+            msg = "REQUEST FAILED: Unauthorized (401). Check the selected provider key."
         elif status == 402:
             msg = "REQUEST FAILED: Payment required (402). Free endpoint may not be available."
         elif status == 429:
