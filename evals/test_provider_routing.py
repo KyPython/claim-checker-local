@@ -4,6 +4,8 @@ No network, no provider billing. A mock response tests only schema contracts.
 """
 import json
 import os
+import io
+import contextlib
 import unittest
 from unittest.mock import patch
 
@@ -220,6 +222,37 @@ class ProviderRoutingTests(unittest.TestCase):
         with self.assertRaises(claimcheck.MalformedResponseError) as raised:
             claimcheck.check_claim("A test claim", client=mock, provider="google")
         self.assertIn("UNSPECIFIED", str(raised.exception))
+
+    def test_google_http_400_reports_only_allowlisted_category(self):
+        secret = "PRIVATE_CLAIM_CONTENT_NOT_FOR_LOGS"
+        body = json.dumps({
+            "error": {
+                "code": 400,
+                "status": "INVALID_ARGUMENT",
+                "message": secret,
+                "details": [{"private": secret}],
+            },
+        })
+        stream = io.StringIO()
+        with patch.object(claimcheck, "check_claim",
+                          side_effect=claimcheck.ProviderHTTPError(400, body)), \
+             contextlib.redirect_stderr(stream):
+            rc = claimcheck.main([
+                "--claim", "A test claim", "--provider", "google", "--json",
+            ])
+        self.assertEqual(rc, 1)
+        self.assertIn("400; INVALID_ARGUMENT", stream.getvalue())
+        self.assertNotIn(secret, stream.getvalue())
+
+    def test_google_http_400_unknown_category_not_echoed(self):
+        secret = "UNKNOWN_OR_SECRET_ERROR_TYPE"
+        body = json.dumps({"error": {"status": secret, "message": secret}})
+        self.assertIsNone(claimcheck.safe_google_error_status(body))
+        self.assertIsNone(claimcheck.safe_google_error_status("not json"))
+        self.assertEqual(
+            claimcheck.safe_google_error_status('{"error":{"status":"RESOURCE_EXHAUSTED"}}'),
+            "RESOURCE_EXHAUSTED",
+        )
 
     def test_invalid_model_causes_zero_calls_even_with_key(self):
         with patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True):
