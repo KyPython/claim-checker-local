@@ -20,7 +20,7 @@ git clone https://github.com/KyPython/claim-checker-local.git
 cd claim-checker-local
 
 # Set your OpenRouter API key (never commit this)
-export OPENROUTER_API_KEY="your-key-here"
+read -rs "OPENROUTER_API_KEY?OpenRouter key (hidden): "\necho\nexport OPENROUTER_API_KEY
 ```
 
 ### Run a claim check
