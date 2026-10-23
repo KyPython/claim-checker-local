@@ -502,19 +502,26 @@ def run_validation_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
     return passed, total, failures
 
 
-def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
+def run_live_tests(
+    verbose: bool = False, provider: str = "openrouter", model: str | None = None
+) -> tuple[int, int, list[str]]:
     """Run live tests against the real Gemma endpoint.
 
-    Requires OPENROUTER_API_KEY to be set.
-    Hard-capped at MAX_LIVE_CASES.
+    Requires the selected provider's key to be set.
+    Hard-capped at MAX_LIVE_CASES; no retries or provider fallback.
     """
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    try:
+        selected_model, endpoint, key_name = claimcheck.select_route(provider, model)
+    except claimcheck.ConfigurationError:
+        print("BLOCKED: Invalid provider/model selection; no API requests.")
+        return 0, 0, ["BLOCKED: invalid provider/model"]
+    api_key = os.environ.get(key_name, "").strip()
     if not api_key:
-        print("BLOCKED: OPENROUTER_API_KEY not set. Cannot run live tests.")
+        print(f"BLOCKED: {key_name} not set. Cannot run live tests.")
         return 0, 0, ["BLOCKED: no API key"]
 
     if api_key == "mock-test-key-not-real":
-        print("BLOCKED: Detected mock key. Set a real OPENROUTER_API_KEY for live tests.")
+        print(f"BLOCKED: Detected mock key. Set a real {key_name} for live tests.")
         return 0, 0, ["BLOCKED: mock key detected"]
 
     cases, evidence_by_id = load_cases()
@@ -529,8 +536,8 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
 
     print("=" * 60)
     print(f"LIVE EVALUATION (real Gemma endpoint, max {MAX_LIVE_CASES} cases)")
-    print(f"Model: {claimcheck.FIXED_MODEL}")
-    print(f"Endpoint: {claimcheck.OPENROUTER_URL}")
+    print(f"Model: {selected_model}")
+    print(f"Endpoint: {endpoint}")
     print("=" * 60)
 
     for case in cases:
@@ -559,6 +566,8 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
                 claim_text,
                 evidence=evidence if evidence else None,
                 client=None,  # Use real client
+                provider=provider,
+                model=selected_model,
             )
             elapsed = time.time() - start
             actual_verdict = card["verdict"]
@@ -599,7 +608,7 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
 
     print(f"\nLive verdict cases: {passed}/{total} passed (reviewed cases only)")
     print(f"Live API calls made: {call_count}")
-    print(f"Model: {claimcheck.FIXED_MODEL}")
+    print(f"Model: {selected_model}")
     return passed, total, failures
 
 
@@ -611,7 +620,14 @@ def main() -> int:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Run live tests against real Gemma endpoint (requires OPENROUTER_API_KEY).",
+        help="Run live tests with the explicitly selected free Gemma provider.",
+    )
+    parser.add_argument(
+        "--provider", choices=("openrouter", "google"), default="openrouter",
+        help="Explicit provider for opt-in live cases; no fallback.",
+    )
+    parser.add_argument(
+        "--model", default=None, help="Exact pinned free Gemma model, no auto-routing.",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -632,7 +648,9 @@ def main() -> int:
 
     if args.live:
         print("\n")
-        live_passed, live_total, live_failures = run_live_tests(args.verbose)
+        live_passed, live_total, live_failures = run_live_tests(
+            args.verbose, provider=args.provider, model=args.model
+        )
         total_passed += live_passed
         total_cases += live_total
         all_failures.extend(live_failures)
