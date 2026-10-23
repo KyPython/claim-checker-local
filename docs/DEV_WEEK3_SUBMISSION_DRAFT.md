@@ -4,77 +4,65 @@ published: false
 tags: devchallenge, hf26challenge, gemma, python
 ---
 
-*This is a submission for the [Hacktoberfest Open-Source AI Challenge Week 3: Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19).*
+*An unpublished candidate submission for the [Hacktoberfest Open-Source AI Challenge, Week 3: Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19).*
 
-> **DRAFT — NOT APPROVED FOR PUBLICATION.** Replace every TODO below only with observed results. Verify DEV eligibility and signed-in submission access. Do not publish a mocked demo as a real Gemma call.
+> **RELEASE DRAFT — NOT YET PUBLISHED.** The real Gemma inference gate is cleared. A public 60–90-second demo, confirmed contest sign-in/eligibility, owner publication approval, and individual provider usage/cost evidence remain outstanding. This is not a claim that the DEV entry exists.
 
 ## What I Built
 
-A post can make a factual claim in one sentence. Checking it often takes several new tabs, a search, and a judgment about which sources deserve trust. That friction is why I wanted a simpler first pass.
+A small claim on a page can trigger a big research detour: more tabs, more searching, and a temptation to decide before inspecting the source. I wanted a smaller *first step* instead of pretending an AI model alone could do the entire fact-check.
 
-**Claim Checker** is a small Python command-line application: supply one claim, and it asks an open-weight Gemma model to produce a structured **provisional verdict card**. The card includes a classification (TRUE, FALSE, MISLEADING or UNVERIFIABLE), a short rationale, and what evidence would settle the issue.
+**Claim Checker** is a Python standard-library CLI that asks Google's **open-weight Gemma 4** model for a structured, *provisional* claim-triage card. It reports one of four labels—`TRUE`, `FALSE`, `MISLEADING`, or `UNVERIFIABLE`—alongside a rationale, the evidence identifiers cited, and what would settle an unresolved claim.
 
-The important design decision is **UNVERIFIABLE**. When no evidence is supplied, the app must not present the model's memory as a fact-check. It is a tool for deciding *what to investigate next*, not a truth machine.
-
-This Week 3 project is a new implementation built during the challenge window, and builds on the verdict-card/UNVERIFIABLE idea from my earlier private October 17 claim-checker experiment.
+The key idea is to **reward useful uncertainty**. The application does not equate a model's memory with independently reviewed evidence. If no source was supplied and reviewed, confident verdicts cannot pass the application validator. The safe outcome is `UNVERIFIABLE`. The benefit is the first structured question to investigate; it is **not** a replacement for independent fact-checking or a live source search.
 
 ## Demo
 
-**TODO AFTER REAL RUN:** Embed or link a 60–90-second screen recording of the actual CLI making an actual Gemma request. Show the command, returned verdict card, model metadata, and a no-evidence UNVERIFIABLE example. Hide the API key and personal information. If the free endpoint or authenticated contest form is unavailable, do not substitute mock output.
+**TODO — add authentic, redacted 60–90-second video or another competition-accepted working demonstration before publication.** A real CLI run is now verified in [the sanitized GitHub receipt](https://github.com/KyPython/claim-checker-local/blob/audit/release-hardening-2026-10-22/docs/LIVE_GEMMA_RECEIPT_2026-10-23.md), but that terminal log is **not itself an embedded video**. The recording should show the actual invocation and JSON output, with no key entry on screen, followed by the separately identified offline safety checks.
 
-Observed live demo date and exact runtime result: **NOT YET AVAILABLE — HTTP 429 on final observed Gemma requests (October 23, 2026).**
+**Verified real sample on October 23, 2026:**
+
+```bash
+python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it \
+  --claim "Earth is the third planet from the Sun." --json
+```
+
+The actual validated JSON card reported `model: "gemma-4-26b-a4b-it"`, `provider: "google"`, `verdict: "UNVERIFIABLE"`, `evidence_ids: []`, and explained that no evidence had been supplied to support or contradict the claim. That does **not** mean the astronomy claim is uncertain in reality: it means the application correctly refuses to certify facts without a reviewed source.
+
+**Demo video URL:** TODO — no link yet.
 
 ## Code
 
 [KyPython/claim-checker-local](https://github.com/KyPython/claim-checker-local)
 
-Run with Python 3.11+; standard library only. The README documents the setup. An OpenRouter key is required for live inference and stays in the local environment.
+Python 3.11+; standard library only. Running the CLI uses a remote provider key held privately in the user's environment. The release-candidate branch is [`audit/release-hardening-2026-10-22`](https://github.com/KyPython/claim-checker-local/tree/audit/release-hardening-2026-10-22); do not imply its commits are on default `main` until actually merged.
 
 ## How I Built It
 
-The runtime is **Gemma 4**, requested at the fixed OpenRouter endpoint with model ID `google/gemma-4-26b-a4b-it:free`. This project does **not** run inference offline: the input is sent over HTTPS to a remote provider.
+The app uses **Gemma 4 26B A4B IT**, served over HTTPS by **Google's Gemini API**. It does **not** run the model offline. A separate manually chosen route can use pinned free Gemma endpoints through OpenRouter; no automatic failover, paid variant, local GPU or cloud deployment is required. Each claim makes at most one request. The response is checked for expected model identity, completion status, JSON shape, allowed verdict, evidence IDs and grounding limits. Failed or incomplete provider calls produce a nonzero request error—not a fake success.
 
-The CLI makes one bounded request per claim, with no automatic retry, paid model fallback, or model auto-router. It validates a fixed verdict schema and rejects mismatched/missing model identity, unsupported confident verdicts, invented evidence IDs and malformed output. Evidence excerpts are user-supplied; the app does not browse for sources.
+**Actual Mac verification, October 23:** `git rev-parse --short HEAD` displayed `6e0c2d5`; Python compilation completed without error, deterministic mock evaluation reported **23/23**, and unit tests reported **34/34**. The **real Google Gemma inference** returned a validated `UNVERIFIABLE` card with no supplied evidence. [Receipt and exact outcome](https://github.com/KyPython/claim-checker-local/blob/audit/release-hardening-2026-10-22/docs/LIVE_GEMMA_RECEIPT_2026-10-23.md).
 
-**Honest test status** (from actual Mac terminal output):
+These tests cover **software contracts and safety behavior**, not measured factual accuracy. Our six candidate source excerpts are **not marked human-reviewed**, and we have **not** completed the proposed eight-case live factual golden evaluation. A `verified_by_human` value in a local file is only an assertion, not proof of source authenticity or entailment.
 
-**Observed on owner's Mac, October 23, 2026, Python 3.12.2, hardening branch at `70dbf31`:** `python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py` completed without reported error. `python3 evals/run_eval.py -v` reported **23/23 deterministic mock checks passing** (eight fixture verdict contracts, 15 synthetic validation/input failures). `python3 -m unittest discover -s evals -p 'test_*.py' -v` reported **15/15 passing**. The mock cases with unreviewed evidence correctly blocked confident verdicts; none of this establishes source truth or live Gemma accuracy. Account API-key validation via `GET /api/v1/key` returned HTTP **200**. Attempted live claim checks returned HTTP **401** twice and **429** twice; **zero successful Gemma inference requests** are evidenced. The activity dashboard showed one unrelated Nemotron request at $0.00, **not Gemma cost or proof**. No provider-paid fallback is allowed. The original six source excerpts are still marked `verified_by_human=false`; human source adjudication remains pending.
+There were real provider obstacles: OpenRouter's free route returned HTTP 429, then the native Google route returned an HTTP 400 and a response the first parser couldn't use. I corrected the Google adapter to accept multiple *final* text parts while ignoring thinking parts and rejecting incomplete generations. The subsequent independently run Mac tests and a valid live Gemma card are the evidence that this narrower implementation worked.
 
-**Release gate:** Until a successful, exact-model `google/gemma-4-26b-a4b-it:free` request and its account activity/cost are verified, do **not** insert a live-verdict screenshot, claim a fully functioning Gemma demo, mark A2/A5-live/A11 complete, assert the Best Use of Gemma runtime was demonstrated, or publish this post as though Gemma ran. A separate clearly labeled engineering screen capture of offline tests is acceptable *as supporting footage only*.
-- Offline deterministic mocks test code paths and failure handling; they do **not** establish factual accuracy.
-- Golden claim labels cannot count as source-grounded truth until the original excerpts and expected judgments are independently reviewed.
-- A live Gemma run and no-cost receipt are necessary before claiming this demo works end to end.
+**Provider cost:** TODO — verify the actual observed request in the relevant Google AI Studio project. Google's price listing is not an individual billing receipt. No claim of $0 actual spend is made yet.
 
-Known limitation: even a reviewed-source flag in local JSON does not independently prove that an excerpt entails the claim. The model's classification remains preliminary.
-
-**Development attribution:** Coding agent Claude Opus 4.6 (Thinking) via Antigravity authored the first Python implementation; ChatGPT helped produce the specification and reviewed code/tests. The owner's original idea, source review, real-run outcomes and final publication must be attributed distinctly. Do not represent AI-authored code as an unaided implementation.
+**Attribution:** The initial Python implementation was authored by **Claude Opus 4.6 (Thinking) via Antigravity**, and ChatGPT authored/updated specification, safeguards and subsequent revisions. The user established and reviewed the project concept and executed the cited Mac verification commands. These are distinct from unaided software-writing evidence. The verdict-card format and first-class `UNVERIFIABLE` decision were adapted from an earlier **private** Claim Checker concept begun October 17, 2026. This Week 3 project is a new, separate implementation begun during the October 19–25 challenge window.
 
 ## Why Does Open Innovation Matter?
 
-An open-weight model lets the application use an AI core without tying its entire design to a closed proprietary model. Here the intentionally constrained cloud route avoids a large local model download on a modest laptop. Open-weight **does not mean** offline, private by default, always free or independent of the provider.
+A portable interface to an **open-weight model** lets the project use actual Gemma behavior without binding its claim-validation rules to a proprietary assistant. Hosted inference was an engineering tradeoff for a modest laptop: less local resource cost, but a real dependency on network access, free-tier capacity, provider privacy terms, and correct API response handling.
 
-I chose explicit uncertainty and failure over a confident-looking answer that cannot be defended. A useful result is sometimes a clear explanation of *what we still need to know*.
+That is why the uncertain outcome is designed as a first-class result rather than hidden. An AI assessment can help triage *what to check* while leaving the final claim of truth to reviewed sources.
 
 ## The Lazy Payoff
 
-I can collect the first structured question about a claim in one command rather than manually drafting a research checklist. **I have not measured verified time savings**, so I am not attaching a fabricated percentage. The real benefit to test is whether this shortens the *triage* step without encouraging people to skip source verification.
+The intended time saving is **starting with a structured claim-triage card**, including a suggestion for what primary evidence is needed. I have **not measured** minutes saved or a validated accuracy lift, so there is no invented benchmark here. A future study could compare how long it takes to identify the right follow-up source with and without this tool.
 
 ## Prize Categories
 
-**Best Use of Gemma** — contingent on a documented, genuine Gemma runtime call. Do not claim category eligibility if the live model check does not pass.
+**Best Use of Gemma**: The challenge explicitly permits Gemma served through Google Cloud or another provider. A genuine `gemma-4-26b-a4b-it` runtime response was observed on October 23. Entry/category eligibility still depends on a valid submitted article and the organizer's decisions.
 
-<!-- Final human checklist: signed-in DEV template opens; real demo link; exact observed model & provider cost; redaction; reviewed fixture results; user approves publish; tags devchallenge and hf26challenge; deadline October 25 11:59 PM PDT. -->
-
-
-### October 23 amendment — provider choice is source-backed, runtime remains unverified
-
-The challenge does **not** mandate a specific Gemma variant or OpenRouter. Official competition rules permit open-source AI generally, and the **Best Use of Gemma** category accepts Gemma hosted through another provider. The public repository now includes a **manual**, no-auto-fallback option to use Google-hosted Gemma 4 26B/31B through the native Gemini API, as well as explicitly selected OpenRouter free Gemma 31B. Google [pricing](https://ai.google.dev/gemini-api/docs/pricing) lists Gemma 4 free-only input/output tokens, and Google [API docs](https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api) document the native route. Free-tier submissions may be used to improve the provider's products.
-
-**Do not claim this alternative worked yet.** The extra provider code and ten new mocked route tests have not yet been rerun on Mac, and no real provider response, model metadata, usage/cost or successful filming receipt has been observed. Update the above prose to match the **actual manually selected provider/model** once that has been demonstrated; leave this post unpublished meanwhile.
-
-
-### October 23 owner Mac proof — corrected after two direct-Google attempts
-
-On the owner’s Mac, code from challenge branch SHA `249e900` compiled successfully; the deterministic mock suite passed **23/23**, and unittest discovery passed **25/25**. The first Google-hosted Gemma 4 26B attempt returned HTTP **400**. The next returned a response that passed the exact `modelVersion` check but had no single usable text part under the old adapter. **No validated Gemma verdict was obtained**, no actual recorded cost receipt was inspected, and no honest fully functional Gemma demonstration can yet be claimed. These facts supersede earlier blanket descriptions that Google had not been invoked.
-
-Post-receipt adapter hardening now handles multipart final text, skips thinking parts, rejects unfinished/cutoff candidates, configures documented minimal thinking and shows only allowlisted Google 400 error categories. New regression tests are staged, **not independently run**. An earlier phrase saying that the runtime is fixed only to OpenRouter is superseded by the manual Google Gemma route table in README and requirements. The post remains **UNPUBLISHED** until an actual successful, exact-model, source-safe run and demo are verified.
+<!-- FINAL PUBLISH GATE: working real-demo video link; date/cost redacted provider receipt; owner eligibility and signed-in template access; owner review of this exact article; official deadline; one publish only; record published article URL. -->
