@@ -535,7 +535,6 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
 
     for case in cases:
         total += 1
-        call_count += 1
         case_id = case["id"]
         claim_text = case["text"]
         expected = case["expected_verdict"]
@@ -555,6 +554,7 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
 
         try:
             start = time.time()
+            call_count += 1
             card = claimcheck.check_claim(
                 claim_text,
                 evidence=evidence if evidence else None,
@@ -586,18 +586,16 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
         except claimcheck.ProviderHTTPError as exc:
             failures.append(f"{case_id}: HTTP {exc.status_code}")
             print(f"    REQUEST FAILED: HTTP {exc.status_code}")
-            if exc.status_code == 429:
-                print("    Rate limited — stopping live tests.")
-                break
-            if exc.status_code == 402:
-                print("    Payment required — stopping live tests.")
-                break
-        except claimcheck.ClaimCheckError as exc:
-            failures.append(f"{case_id}: {type(exc).__name__}: {exc}")
-            print(f"    REQUEST FAILED: {type(exc).__name__}: {exc}")
-        except Exception as exc:
-            failures.append(f"{case_id}: unexpected {type(exc).__name__}: {exc}")
-            print(f"    ERROR: {type(exc).__name__}: {exc}")
+            print("    Provider failure — stopping live tests; no retry or fallback.")
+            break
+        except claimcheck.ClaimCheckError:
+            failures.append(f"{case_id}: request/validation failure; batch stopped")
+            print("    REQUEST FAILED: request/validation failure; stopping live tests.")
+            break
+        except Exception:
+            failures.append(f"{case_id}: unexpected failure; batch stopped")
+            print("    REQUEST FAILED: unexpected failure; stopping live tests.")
+            break
 
     print(f"\nLive verdict cases: {passed}/{total} passed (reviewed cases only)")
     print(f"Live API calls made: {call_count}")

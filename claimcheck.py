@@ -302,8 +302,7 @@ def validate_provider_response(
             )
         if eid not in supplied_evidence_ids:
             raise ResponseValidationError(
-                f"Model cited evidence ID '{eid}' which was not supplied. "
-                f"Supplied IDs: {sorted(supplied_evidence_ids)}"
+                "Model cited an evidence ID that was not supplied."
             )
 
     # Evidence IDs alone do not establish reviewed provenance or even that the model
