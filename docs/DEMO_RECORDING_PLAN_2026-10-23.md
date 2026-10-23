@@ -70,3 +70,10 @@ unset GEMINI_API_KEY
 ```
 
 Only after real-model response, modelVersion and provider usage are verified may Clip B be recorded with a truthful claim of live Gemma operation. If the response fails, preserve a failure clip as such; don't read the success narration or claim the Best Use of Gemma integration was exercised. Google free-tier data use/remote processing must be mentioned in the DEV post. No provider auto-retry or billing upgrades.
+
+
+## October 23 Mac verification update — read before recording
+
+At SHA `249e900`, Mac compile and offline tests passed (**23/23 mock; 25/25 unittest**). Google direct inference #1 returned HTTP 400 and #2 returned a response with matching modelVersion but **no usable final text card** under the older parser. The parser was corrected afterward but the new head has **not** been rerun. For Clip A, reflect the **25-unit-test** count only when showing that earlier run; on a new recording show the **actual new** result. Never say Google has not been attempted: say \"Google reached the model response path but did not produce a validated claim card yet.\"
+
+The next required action is **only** to pull and run offline tests. A follow-up Google inference must be a separate manually approved one-call action after verifying free-tier project status. If it still fails, do not splice a mock into a supposed live result.
