@@ -354,19 +354,58 @@ def select_route(provider: str, model: str | None) -> tuple[str, str, str]:
 
 
 def normalize_google_response(raw: dict[str, Any], expected_model: str) -> dict[str, Any]:
-    """Require Google generateContent modelVersion before adapting to shared card gate."""
+    """Normalize one completed final answer; never treat thinking as a verdict.
+
+    Google generateContent may return several content.parts, including thought
+    segments. Metadata and candidate-stop reasons are untrusted and never echoed
+    verbatim. No retries, alternate candidates or model substitutions are used.
+    """
     if not isinstance(raw, dict):
         raise MalformedResponseError("Google provider response is not a JSON object.")
     if raw.get("modelVersion") != expected_model:
         raise ModelMismatchError("Google provider did not attest the exact selected Gemma model.")
-    try:
-        parts = raw["candidates"][0]["content"]["parts"]
-        if len(parts) != 1 or not isinstance(parts[0]["text"], str):
-            raise ValueError("Expected one text response part.")
-        content = parts[0]["text"]
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise MalformedResponseError("Google response has no single usable text candidate.") from exc
-    return {"model": expected_model, "choices": [{"message": {"content": content}}]}
+
+    candidates = raw.get("candidates")
+    if not isinstance(candidates, list) or len(candidates) != 1:
+        # The API may supply promptFeedback instead of a candidate. Do not echo it.
+        raise MalformedResponseError("Google response has no unique final candidate.")
+    candidate = candidates[0]
+    if not isinstance(candidate, dict):
+        raise MalformedResponseError("Google candidate has an invalid structure.")
+
+    reason = candidate.get("finishReason")
+    # Only fixed, documented enum values may occur in diagnostics. Never echo
+    # provider free-form finishMessage, promptFeedback or the submitted claim.
+    known_reasons = frozenset({
+        "MAX_TOKENS", "SAFETY", "RECITATION", "LANGUAGE", "OTHER",
+        "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "MALFORMED_FUNCTION_CALL",
+        "IMAGE_SAFETY", "CONTINUATION",
+    })
+    if reason != "STOP":
+        label = reason if isinstance(reason, str) and reason in known_reasons else "UNSPECIFIED"
+        raise MalformedResponseError(
+            f"Google generation did not finish with a usable answer ({label})."
+        )
+
+    content = candidate.get("content")
+    parts = content.get("parts") if isinstance(content, dict) else None
+    if not isinstance(parts, list) or not parts:
+        raise MalformedResponseError("Google response has no final text.")
+    text_parts = []
+    for part in parts:
+        if not isinstance(part, dict):
+            raise MalformedResponseError("Google response contains an invalid content part.")
+        if part.get("thought") is True:
+            continue
+        # No functions or non-text media belong in a verdict card.
+        if not isinstance(part.get("text"), str):
+            raise MalformedResponseError("Google response contains a non-text final part.")
+        text_parts.append(part["text"])
+
+    final_text = "".join(text_parts)
+    if not final_text.strip():
+        raise MalformedResponseError("Google response contains no final answer text.")
+    return {"model": expected_model, "choices": [{"message": {"content": final_text}}]}
 
 
 # ── Core check function ─────────────────────────────────────────────
@@ -438,7 +477,13 @@ def check_claim(
         request_body = {
             "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
             "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
-            "generationConfig": {"temperature": 0, "maxOutputTokens": 700},
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": 700,
+                # Gemma 4 explicitly supports minimal vs high thinking; reserve
+                # finite output tokens for the JSON verdict instead of reasoning.
+                "thinkingConfig": {"thinkingLevel": "minimal"},
+            },
         }
         headers = {"x-goog-api-key": api_key}
 
