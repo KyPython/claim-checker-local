@@ -70,3 +70,18 @@ At the end of the coding agent's attempt, report:
 6. **Explicit STOP** on absent credit-free API availability, unreviewed evidence, fail-open secret exposure, or missing owner gate.
 
 This plan does not authorize API purchases, CI runs, automatic PRs, merges, deployments, or DEV posting.
+
+
+## Release-routing delta — 2026-10-23 (owner-approved scope, execution pending)
+
+- [x] Document official DEV rules: overall submission can use other qualifying open-source AI, but Best Use of Gemma requires Gemma; created challenge project remains separate from private original.
+- [x] Stage explicit allowlisted OpenRouter 31B free and Google native 26B/31B routes on current hardening PR branch; do not infer runtime success from commit.
+- [x] Stage eight new offline tests of exact model routing, no-key zero calls, Google modelVersion checks, schema and evidence gates; execution pending.
+- [ ] Re-run Python compilation, the original 23 offline mocks, all unittest files (previous 15 + new 8 = 23 unittest methods), record **current** SHA with exit status. Never claim pre-change passes cover the new code.
+- [ ] Verify AI Studio Gemma free-tier project and quotas without giving keys to agent. Google free-tier data-use disclosure remains mandatory.
+- [ ] Attempt exactly one explicitly authorized live Google Gemma 4 call (no private claim), verify exact returned modelVersion/UNVERIFIABLE card, usage/billing and capture a sanitized receipt. On HTTP 429/missing modelVersion/HTTP error, STOP and maintain BLOCKED.
+- [ ] Only with a real model result, record actual 60–90s functional demo; no simulated verdict or synthetic input as purported real inference.
+- [ ] Complete source/oracle review for any case claimed TRUE/FALSE/MISLEADING; keep false flags otherwise. Eight live-case evaluation remains pending under existing A5 gate.
+- [ ] Confirm DEV signed-in submission template, owner eligibility and publication authorization; publish once before October 25 11:59 PM PDT, record actual URL. Release blocked until all applicable gates have receipts.
+
+No CI, PR merge, paid call, public deployment or contest submission is authorized solely by staging this code.
