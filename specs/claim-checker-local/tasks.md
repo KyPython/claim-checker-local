@@ -85,3 +85,13 @@ This plan does not authorize API purchases, CI runs, automatic PRs, merges, depl
 - [ ] Confirm DEV signed-in submission template, owner eligibility and publication authorization; publish once before October 25 11:59 PM PDT, record actual URL. Release blocked until all applicable gates have receipts.
 
 No CI, PR merge, paid call, public deployment or contest submission is authorized solely by staging this code.
+
+
+## 2026-10-23 14:48 ET — executed Mac receipts and new blocker
+
+- [x] At tested SHA `249e900`: Python compile pass; deterministic mock **23/23**; unittest discovery **25/25**.
+- [x] Exactly two manually initiated Google native Gemma 4 26B calls observed: first **HTTP 400**; second reached response parser with matching modelVersion but no single usable final text candidate. **These are attempted calls, not validated verdicts**.
+- [x] Stage corrective Google multipart final-text extraction, thought-only/cutoff rejection, minimal-thinking configuration and sanitized 400 category. Additional new tests are staged.
+- [ ] Run all current Python offline checks at latest SHA, record totals and no-network behavior. Old 25/25 results do not verify new code.
+- [ ] Verify Google AI Studio project free-tier entitlement, then make at most one separately authorized new live Gemma call; confirm exact identity, card, and cost. If blocked, stop without automatic fallback.
+- [ ] Human source/oracle review, actual live screen demo, DEV signed-in form, publication approval and receipt still pending.
