@@ -22,7 +22,7 @@ This Week 3 project is a new implementation built during the challenge window, a
 
 **TODO AFTER REAL RUN:** Embed or link a 60–90-second screen recording of the actual CLI making an actual Gemma request. Show the command, returned verdict card, model metadata, and a no-evidence UNVERIFIABLE example. Hide the API key and personal information. If the free endpoint or authenticated contest form is unavailable, do not substitute mock output.
 
-Observed demo date and exact runtime result: **TODO**.
+Observed live demo date and exact runtime result: **NOT YET AVAILABLE — HTTP 429 on final observed Gemma requests (October 23, 2026).**
 
 ## Code
 
@@ -36,7 +36,11 @@ The runtime is **Gemma 4**, requested at the fixed OpenRouter endpoint with mode
 
 The CLI makes one bounded request per claim, with no automatic retry, paid model fallback, or model auto-router. It validates a fixed verdict schema and rejects mismatched/missing model identity, unsupported confident verdicts, invented evidence IDs and malformed output. Evidence excerpts are user-supplied; the app does not browse for sources.
 
-**Honest test status** (update from actual terminal output): **TODO**.
+**Honest test status** (from actual Mac terminal output):
+
+**Observed on owner's Mac, October 23, 2026, Python 3.12.2, hardening branch at `70dbf31`:** `python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py` completed without reported error. `python3 evals/run_eval.py -v` reported **23/23 deterministic mock checks passing** (eight fixture verdict contracts, 15 synthetic validation/input failures). `python3 -m unittest discover -s evals -p 'test_*.py' -v` reported **15/15 passing**. The mock cases with unreviewed evidence correctly blocked confident verdicts; none of this establishes source truth or live Gemma accuracy. Account API-key validation via `GET /api/v1/key` returned HTTP **200**. Attempted live claim checks returned HTTP **401** twice and **429** twice; **zero successful Gemma inference requests** are evidenced. The activity dashboard showed one unrelated Nemotron request at $0.00, **not Gemma cost or proof**. No provider-paid fallback is allowed. The original six source excerpts are still marked `verified_by_human=false`; human source adjudication remains pending.
+
+**Release gate:** Until a successful, exact-model `google/gemma-4-26b-a4b-it:free` request and its account activity/cost are verified, do **not** insert a live-verdict screenshot, claim a fully functioning Gemma demo, mark A2/A5-live/A11 complete, assert the Best Use of Gemma runtime was demonstrated, or publish this post as though Gemma ran. A separate clearly labeled engineering screen capture of offline tests is acceptable *as supporting footage only*.
 - Offline deterministic mocks test code paths and failure handling; they do **not** establish factual accuracy.
 - Golden claim labels cannot count as source-grounded truth until the original excerpts and expected judgments are independently reviewed.
 - A live Gemma run and no-cost receipt are necessary before claiming this demo works end to end.
