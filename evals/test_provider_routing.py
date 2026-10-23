@@ -62,6 +62,40 @@ class ProviderRoutingTests(unittest.TestCase):
                 self.assertTrue(url.startswith("https://"))
                 self.assertIn(key_name, ("OPENROUTER_API_KEY", "GEMINI_API_KEY"))
 
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "offline-test-only"}, clear=True)
+    def test_openrouter_31b_explicit_single_request(self):
+        content = json.dumps({
+            "verdict": "UNVERIFIABLE",
+            "rationale": "No reviewed evidence was provided.",
+            "what_would_settle_it": "A reviewed primary source.",
+            "evidence_ids": [],
+        })
+        mock = CaptureClient({
+            "model": "google/gemma-4-31b-it:free",
+            "choices": [{"message": {"content": content}}],
+        })
+        card = claimcheck.check_claim(
+            "A test claim", client=mock, provider="openrouter",
+            model="google/gemma-4-31b-it:free",
+        )
+        self.assertEqual(card["model"], "google/gemma-4-31b-it:free")
+        self.assertEqual(card["provider"], "openrouter")
+        self.assertEqual(len(mock.calls), 1)
+        self.assertEqual(mock.calls[0][2]["model"], "google/gemma-4-31b-it:free")
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "offline-test-only"}, clear=True)
+    def test_openrouter_31b_stripped_free_suffix_fails_closed(self):
+        mock = CaptureClient({
+            "model": "google/gemma-4-31b-it",
+            "choices": [{"message": {"content": "{}"}}],
+        })
+        with self.assertRaises(claimcheck.ModelMismatchError):
+            claimcheck.check_claim(
+                "A test claim", client=mock, provider="openrouter",
+                model="google/gemma-4-31b-it:free",
+            )
+        self.assertEqual(len(mock.calls), 1)
+
     @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
     def test_google_native_single_request_no_evidence_abstains(self):
         mock = CaptureClient(google_reply())
