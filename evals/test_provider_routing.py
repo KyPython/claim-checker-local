@@ -1,0 +1,275 @@
+"""Offline routing and validation tests for Google-hosted free Gemma.
+
+No network, no provider billing. A mock response tests only schema contracts.
+"""
+import json
+import os
+import io
+import contextlib
+import unittest
+from unittest.mock import patch
+
+import claimcheck
+
+
+def google_reply(model="gemma-4-26b-a4b-it", verdict="UNVERIFIABLE", evidence_ids=None):
+    return {
+        "modelVersion": model,
+        "candidates": [{
+            "finishReason": "STOP",
+            "content": {"parts": [{"text": json.dumps({
+                "verdict": verdict,
+                "rationale": "No reviewed source was provided.",
+                "what_would_settle_it": "An independently reviewed primary source.",
+                "evidence_ids": [] if evidence_ids is None else evidence_ids,
+            })}]}
+        }],
+    }
+
+
+class CaptureClient:
+    def __init__(self, result):
+        self.result = result
+        self.calls = []
+
+    def post_json(self, url, headers, body, timeout):
+        self.calls.append((url, headers, body, timeout))
+        return self.result
+
+
+class ProviderRoutingTests(unittest.TestCase):
+    def test_allowlists_reject_paid_models_and_unknown_providers(self):
+        for provider, model in [
+            ("openrouter", "google/gemma-4-26b-a4b-it"),
+            ("openrouter", "openrouter/free"),
+            ("openrouter", "openai/gpt-4"),
+            ("google", "gemini-3.8-flash"),
+            ("google", "google/gemma-4-31b-it:free"),
+            ("something-else", None),
+        ]:
+            with self.subTest(provider=provider, model=model):
+                with self.assertRaises(claimcheck.ConfigurationError):
+                    claimcheck.select_route(provider, model)
+
+    def test_approved_routes_explicit_only(self):
+        expected = (
+            ("openrouter", "google/gemma-4-26b-a4b-it:free"),
+            ("openrouter", "google/gemma-4-31b-it:free"),
+            ("google", "gemma-4-26b-a4b-it"),
+            ("google", "gemma-4-31b-it"),
+        )
+        for provider, model in expected:
+            with self.subTest(provider=provider, model=model):
+                chosen, url, key_name = claimcheck.select_route(provider, model)
+                self.assertEqual(chosen, model)
+                self.assertTrue(url.startswith("https://"))
+                self.assertIn(key_name, ("OPENROUTER_API_KEY", "GEMINI_API_KEY"))
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "offline-test-only"}, clear=True)
+    def test_openrouter_31b_explicit_single_request(self):
+        content = json.dumps({
+            "verdict": "UNVERIFIABLE",
+            "rationale": "No reviewed evidence was provided.",
+            "what_would_settle_it": "A reviewed primary source.",
+            "evidence_ids": [],
+        })
+        mock = CaptureClient({
+            "model": "google/gemma-4-31b-it:free",
+            "choices": [{"message": {"content": content}}],
+        })
+        card = claimcheck.check_claim(
+            "A test claim", client=mock, provider="openrouter",
+            model="google/gemma-4-31b-it:free",
+        )
+        self.assertEqual(card["model"], "google/gemma-4-31b-it:free")
+        self.assertEqual(card["provider"], "openrouter")
+        self.assertEqual(len(mock.calls), 1)
+        self.assertEqual(mock.calls[0][2]["model"], "google/gemma-4-31b-it:free")
+
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "offline-test-only"}, clear=True)
+    def test_openrouter_31b_stripped_free_suffix_fails_closed(self):
+        mock = CaptureClient({
+            "model": "google/gemma-4-31b-it",
+            "choices": [{"message": {"content": "{}"}}],
+        })
+        with self.assertRaises(claimcheck.ModelMismatchError):
+            claimcheck.check_claim(
+                "A test claim", client=mock, provider="openrouter",
+                model="google/gemma-4-31b-it:free",
+            )
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_native_single_request_no_evidence_abstains(self):
+        mock = CaptureClient(google_reply())
+        card = claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertEqual(card["verdict"], "UNVERIFIABLE")
+        self.assertEqual(card["provider"], "google")
+        self.assertEqual(card["model"], "gemma-4-26b-a4b-it")
+        self.assertEqual(len(mock.calls), 1)
+        url, headers, body, timeout = mock.calls[0]
+        self.assertEqual(url, claimcheck.GOOGLE_API_URLS["gemma-4-26b-a4b-it"])
+        self.assertNotIn("Authorization", headers)
+        self.assertEqual(headers["x-goog-api-key"], "offline-test-only")
+        self.assertNotIn("model", body)
+        self.assertEqual(body["generationConfig"]["thinkingConfig"]["thinkingLevel"], "minimal")
+        self.assertEqual(timeout, claimcheck.TIMEOUT_SECONDS)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_31b_is_manual_and_exact(self):
+        mock = CaptureClient(google_reply(model="gemma-4-31b-it"))
+        card = claimcheck.check_claim(
+            "A test claim", client=mock, provider="google", model="gemma-4-31b-it"
+        )
+        self.assertEqual(card["model"], "gemma-4-31b-it")
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_missing_or_wrong_model_attestation_fails_closed(self):
+        for reply in (google_reply(model=None), google_reply(model="gemma-4-31b-it"),
+                      {"candidates": []}):
+            with self.subTest(reply=reply.get("modelVersion")):
+                mock = CaptureClient(reply)
+                with self.assertRaises(claimcheck.ModelMismatchError):
+                    claimcheck.check_claim("A test claim", client=mock, provider="google")
+                self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_confident_without_reviewed_sources_is_rejected(self):
+        mock = CaptureClient(google_reply(verdict="TRUE"))
+        with self.assertRaises(claimcheck.ResponseValidationError):
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_multipart_thoughts_are_never_a_verdict(self):
+        payload = json.dumps({
+            "verdict": "UNVERIFIABLE",
+            "rationale": "No reviewed source supplied.",
+            "what_would_settle_it": "A reviewed public source.",
+            "evidence_ids": [],
+        })
+        midpoint = len(payload) // 2
+        raw = google_reply()
+        raw["candidates"][0]["content"]["parts"] = [
+            {"thought": True, "text": "SENSITIVE_THOUGHT_NOT_A_VERDICT"},
+            {"text": payload[:midpoint]},
+            {"text": payload[midpoint:], "thoughtSignature": "opaque-sample"},
+        ]
+        mock = CaptureClient(raw)
+        card = claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertEqual(card["verdict"], "UNVERIFIABLE")
+        self.assertNotIn("SENSITIVE_THOUGHT", card["rationale"])
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_thought_only_response_blocks_without_leaking_thought(self):
+        secret = "SENSITIVE_PROVIDER_THOUGHT_CONTENT"
+        raw = google_reply()
+        raw["candidates"][0]["content"]["parts"] = [{"text": secret, "thought": True}]
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertNotIn(secret, str(raised.exception))
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_truncated_response_is_never_a_verdict(self):
+        raw = google_reply()
+        raw["candidates"][0]["finishReason"] = "MAX_TOKENS"
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertIn("MAX_TOKENS", str(raised.exception))
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_blocked_candidate_never_passes(self):
+        raw = google_reply()
+        raw["candidates"][0]["finishReason"] = "SAFETY"
+        raw["candidates"][0]["finishMessage"] = "PRIVATE_UNTRUSTED_PROVIDER_TEXT"
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertIn("SAFETY", str(raised.exception))
+        self.assertNotIn("PRIVATE_", str(raised.exception))
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_empty_and_multiple_candidates_fail_closed(self):
+        for candidates in ([], [google_reply()["candidates"][0]] * 2):
+            raw = google_reply()
+            raw["candidates"] = candidates
+            mock = CaptureClient(raw)
+            with self.subTest(count=len(candidates)):
+                with self.assertRaises(claimcheck.MalformedResponseError):
+                    claimcheck.check_claim("A test claim", client=mock, provider="google")
+                self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_nontext_final_part_is_rejected(self):
+        raw = google_reply()
+        raw["candidates"][0]["content"]["parts"].append(
+            {"functionCall": {"name": "malicious", "args": {}}}
+        )
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError):
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_missing_finish_reason_is_not_a_success(self):
+        raw = google_reply()
+        del raw["candidates"][0]["finishReason"]
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertIn("UNSPECIFIED", str(raised.exception))
+
+    def test_google_http_400_reports_only_allowlisted_category(self):
+        secret = "PRIVATE_CLAIM_CONTENT_NOT_FOR_LOGS"
+        body = json.dumps({
+            "error": {
+                "code": 400,
+                "status": "INVALID_ARGUMENT",
+                "message": secret,
+                "details": [{"private": secret}],
+            },
+        })
+        stream = io.StringIO()
+        with patch.object(claimcheck, "check_claim",
+                          side_effect=claimcheck.ProviderHTTPError(400, body)), \
+             contextlib.redirect_stderr(stream):
+            rc = claimcheck.main([
+                "--claim", "A test claim", "--provider", "google", "--json",
+            ])
+        self.assertEqual(rc, 1)
+        self.assertIn("400; INVALID_ARGUMENT", stream.getvalue())
+        self.assertNotIn(secret, stream.getvalue())
+
+    def test_google_http_400_unknown_category_not_echoed(self):
+        secret = "UNKNOWN_OR_SECRET_ERROR_TYPE"
+        body = json.dumps({"error": {"status": secret, "message": secret}})
+        self.assertIsNone(claimcheck.safe_google_error_status(body))
+        self.assertIsNone(claimcheck.safe_google_error_status("not json"))
+        self.assertEqual(
+            claimcheck.safe_google_error_status('{"error":{"status":"RESOURCE_EXHAUSTED"}}'),
+            "RESOURCE_EXHAUSTED",
+        )
+
+    def test_invalid_model_causes_zero_calls_even_with_key(self):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True):
+            mock = CaptureClient(google_reply())
+            with self.assertRaises(claimcheck.ConfigurationError):
+                claimcheck.check_claim(
+                    "A test claim", client=mock, provider="google", model="gemini-3.8-flash"
+                )
+            self.assertEqual(mock.calls, [])
+
+    def test_missing_google_key_causes_zero_calls(self):
+        with patch.dict(os.environ, {}, clear=True):
+            mock = CaptureClient(google_reply())
+            with self.assertRaises(claimcheck.ConfigurationError):
+                claimcheck.check_claim("A test claim", client=mock, provider="google")
+            self.assertEqual(mock.calls, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

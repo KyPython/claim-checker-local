@@ -1,60 +1,72 @@
 {
   "schema": "claim-evidence/v1",
-  "description": "Eight golden evaluation cases for claim-checker-local. Cases cover TRUE, FALSE, MISLEADING, and UNVERIFIABLE verdicts. Each case documents its evidence dependencies, expected verdict, and whether honest abstention (UNVERIFIABLE) is acceptable.",
+  "description": "Eight candidate source-linked cases including TRUE, FALSE, MISLEADING and UNVERIFIABLE. Assistant checked source URLs, but human source/oracle review is NOT established; all provenance_reviewed flags false. Mocks test contracts, not factual accuracy.",
   "cases": [
     {
       "id": "case-01",
       "text": "Earth is the third planet from the Sun.",
-      "evidence_ids": ["source-01"],
+      "evidence_ids": [
+        "source-01"
+      ],
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "NASA Earth Fact Sheet directly states Earth is the third planet from the Sun. Evidence source-01 directly supports this claim."
+      "rationale_for_expected": "NASA About the Planets explicitly identifies Earth as third from the Sun. Source-01 candidate; owner review pending."
     },
     {
       "id": "case-02",
       "text": "Pluto is classified as a full planet by the International Astronomical Union.",
-      "evidence_ids": ["source-02"],
+      "evidence_ids": [
+        "source-02"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "IAU Resolution 5A (2006) reclassified Pluto as a 'dwarf planet', not a full planet. Evidence source-02 directly contradicts the claim."
+      "rationale_for_expected": "IAU Resolution 5A defines classes, Resolution 6A classifies Pluto as a dwarf planet, refuting full planet claim. Owner review pending."
     },
     {
       "id": "case-03",
       "text": "Neil Armstrong was the first person to walk on the Moon in 1969.",
-      "evidence_ids": ["source-03"],
+      "evidence_ids": [
+        "source-03"
+      ],
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "Smithsonian Apollo 11 overview confirms Armstrong and Aldrin landed on the Moon on July 20, 1969. Armstrong was first to step out. Source-03 supports the claim."
+      "rationale_for_expected": "NASA Armstrong profile states he was the first to walk on the Moon on July 20, 1969, during Apollo 11. Owner review pending."
     },
     {
       "id": "case-04",
       "text": "The Great Wall of China is easily visible from space with the naked eye.",
-      "evidence_ids": ["source-04"],
+      "evidence_ids": [
+        "source-04"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "Britannica and astronaut reports confirm the Great Wall is NOT easily visible from space with the unaided eye. Evidence source-04 directly contradicts the claim."
+      "rationale_for_expected": "NASA JSC Earth Observations FAQ says Great Wall not visible to naked eye from orbit. Owner review pending."
     },
     {
       "id": "case-05",
-      "text": "Everyone in the world has access to clean drinking water.",
-      "evidence_ids": ["source-05"],
-      "expected_verdict": "FALSE",
+      "text": "WHO reported 6 billion people used safely managed drinking-water services in 2022, so nearly everyone had access.",
+      "evidence_ids": [
+        "source-05"
+      ],
+      "expected_verdict": "MISLEADING",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "WHO reports 2.2 billion people lacked safely managed drinking water in 2022. Evidence source-05 directly contradicts the universal access claim."
+      "rationale_for_expected": "WHO confirms the 6-billion figure, but also states 2.2 billion people lacked safely managed services in 2022. The extrapolation to nearly everyone omits a materially large uncovered population; interpretation of the word 'nearly' still requires human adjudication."
     },
     {
       "id": "case-06",
       "text": "The ocean contains most of Earth's water.",
-      "evidence_ids": ["source-06"],
-      "expected_verdict": "MISLEADING",
+      "evidence_ids": [
+        "source-06"
+      ],
+      "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "While technically accurate (97.5% per NOAA), saying 'most' without noting it's saltwater omits material context about potable water availability. Source-06 supports the basic fact but the claim could mislead about accessible freshwater. Model may also reasonably say TRUE since the literal statement is supported."
+      "rationale_for_expected": "NOAA says about 97% of Earth's water is in oceans; directly supports literally true claim. Owner review pending."
     },
     {
       "id": "case-07",
@@ -76,4 +88,3 @@
     }
   ]
 }
-

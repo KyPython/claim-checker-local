@@ -166,3 +166,19 @@ Nonzero exit for errors; 0 only on schema-valid successfully processed card. No 
 Show a fresh sanitized redacted receipt: exact model ID and observed HTTP provider response, `--claim` input run, `UNVERIFIABLE` result on evidence-free case, grounded candidate case with recorded reviewed source IDs, mocked eval all cases, opt-in live eval outputs, correct no-retry failures, and public README preview. Validate repository created in window, originality/credit, code link, no secrets, published DEV post template, conditional partner category and owner authorization.
 
 Avoid promising zero factual error, actual time saved, offline operation, privacy of remotely submitted claims, product users, earned skills or a competition prize without evidence.
+
+
+## Amendment — 2026-10-23 explicit free Gemma service routing
+
+This section supersedes prior one-provider/one-model *future-design* assumptions, not the unchanged verdict and human-reviewed-evidence contract. At CLI invocation, `--provider` chooses either `openrouter` (default) or `google`; optional `--model` must exactly match the allowlist. The chosen service and HTTPS endpoint are determined locally *before reading provider credentials or sending a request*. No DNS URL or model identifier is built from arbitrary untrusted strings: Google API URLs are preconstructed for only two pinned model names.
+
+OpenRouter uses its established chat/completions JSON schema and requires the returned `model` to match the exact requested `:free` value. Google's [native Gemma REST API](https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api) uses `x-goog-api-key`, `systemInstruction`, `contents`, `generationConfig`, and a `generateContent` response. The adapter reads the single text candidate and requires the `modelVersion` to equal the explicitly selected Google model before passing a normalized response to the *same* four-verdict/source-ID/card validator. Missing model, candidate or malformed JSON remains an error. The card labels the selected provider; it cannot self-attest pricing or independently adjudicate ground truth.
+
+Google Gemma 4 token prices are currently [free-only](https://ai.google.dev/gemini-api/docs/pricing); no token spend is claimed until live usage independently confirms it. The key must belong to an owner-reviewed eligible free-tier project. There is **no** automatic OpenRouter→Google recovery and no silent request on a different model. An OpenRouter 429 requires explicit human decision to rerun elsewhere. No new code paths have been independently executed as of this amendment.
+
+
+## Google response adapter correction — 2026-10-23
+
+The native Google `GenerateContentResponse` schema permits multiple candidate `content.parts` including `thought=true` and candidate `finishReason` enums. Earlier adapter incorrectly required `len(parts) == 1`. Following real Mac receipt of an HTTP 400 and a matched-model response with unusable text, the new adapter requires **exactly one candidate** with `finishReason=STOP`; combines only final text parts; discards thought parts; rejects any non-text final part, no final text, missing finish reason, MAX_TOKENS, safety and other incomplete statuses without echoing raw provider messages. A fixed finite output limit and documented Gemma 4 `thinkingConfig.thinkingLevel=minimal` are requested. The existing schema, cited-evidence, modelVersion and fail-closed gates remain mandatory. A Google 400 presents only a safe allowlisted `error.status` enum if parsed, never the free-form `error.message`. No automatic retries and no paid fallbacks.
+
+Source: https://ai.google.dev/api/generate-content and https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api . Live correctness is still **unverified** on the new code; offline test execution is pending.

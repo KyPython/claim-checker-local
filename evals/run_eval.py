@@ -134,16 +134,16 @@ MOCK_RESPONSES: dict[str, dict[str, Any]] = {
         "Consult astronaut testimonies or space agency reports on Earth observation.",
         ["source-04"],
     ),
-    "Everyone in the world has access to clean drinking water": _make_mock_response(
-        "FALSE",
-        "WHO reports that 2.2 billion people still lacked safely managed drinking water services in 2022.",
-        "See WHO/UNICEF Joint Monitoring Programme data.",
+    "WHO reported 6 billion people used safely managed drinking-water services in 2022": _make_mock_response(
+        "MISLEADING",
+        "WHO gives this figure but also reports 2.2 billion without safely managed services. The nearly-everyone inference obscures that gap.",
+        "See WHO/UNICEF data and define the intended meaning of nearly everyone.",
         ["source-05"],
     ),
     "The ocean contains most of Earth's water": _make_mock_response(
-        "MISLEADING",
-        "While technically accurate (the ocean holds about 97.5% of Earth's water per NOAA), saying 'most' without noting it is saltwater omits material context about accessible freshwater.",
-        "Consult NOAA or USGS water distribution data with freshwater breakdown.",
+        "TRUE",
+        "NOAA states the oceans contain about 97% of Earth's water. The literal claim is supported.",
+        "Consult NOAA or USGS measurements for water distribution.",
         ["source-06"],
     ),
     "Bananas cure cancer": _make_mock_response(
@@ -352,6 +352,21 @@ def run_mock_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
             evidence = [evidence_by_id[eid] for eid in case_evidence_ids if eid in evidence_by_id]
 
             try:
+                unreviewed = bool(evidence) and not all(
+                    e.get("verified_by_human") is True for e in evidence
+                )
+                if unreviewed:
+                    # Test the refusal, not the truth of an unreviewed oracle.
+                    try:
+                        claimcheck.check_claim(
+                            claim_text, evidence=evidence, client=mock_client
+                        )
+                    except claimcheck.ResponseValidationError:
+                        passed += 1
+                        print(f"  [{case_id}] PASS (confident verdict blocked: unreviewed source)")
+                        continue
+                    raise AssertionError("Confident verdict accepted with unreviewed source")
+
                 card = claimcheck.check_claim(
                     claim_text,
                     evidence=evidence if evidence else None,
@@ -386,7 +401,7 @@ def run_mock_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
                 print(f"  [{case_id}] ERROR: {exc}")
                 total += 0  # already counted
 
-        print(f"\nMock verdict cases: {passed}/{total} passed")
+        print(f"\nMock contract cases: {passed}/{total} passed (not factual accuracy)")
         print(f"Mock HTTP calls: {mock_client.call_count}")
 
         # Additional validation tests
@@ -487,19 +502,26 @@ def run_validation_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
     return passed, total, failures
 
 
-def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
+def run_live_tests(
+    verbose: bool = False, provider: str = "openrouter", model: str | None = None
+) -> tuple[int, int, list[str]]:
     """Run live tests against the real Gemma endpoint.
 
-    Requires OPENROUTER_API_KEY to be set.
-    Hard-capped at MAX_LIVE_CASES.
+    Requires the selected provider's key to be set.
+    Hard-capped at MAX_LIVE_CASES; no retries or provider fallback.
     """
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    try:
+        selected_model, endpoint, key_name = claimcheck.select_route(provider, model)
+    except claimcheck.ConfigurationError:
+        print("BLOCKED: Invalid provider/model selection; no API requests.")
+        return 0, 0, ["BLOCKED: invalid provider/model"]
+    api_key = os.environ.get(key_name, "").strip()
     if not api_key:
-        print("BLOCKED: OPENROUTER_API_KEY not set. Cannot run live tests.")
+        print(f"BLOCKED: {key_name} not set. Cannot run live tests.")
         return 0, 0, ["BLOCKED: no API key"]
 
     if api_key == "mock-test-key-not-real":
-        print("BLOCKED: Detected mock key. Set a real OPENROUTER_API_KEY for live tests.")
+        print(f"BLOCKED: Detected mock key. Set a real {key_name} for live tests.")
         return 0, 0, ["BLOCKED: mock key detected"]
 
     cases, evidence_by_id = load_cases()
@@ -514,13 +536,12 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
 
     print("=" * 60)
     print(f"LIVE EVALUATION (real Gemma endpoint, max {MAX_LIVE_CASES} cases)")
-    print(f"Model: {claimcheck.FIXED_MODEL}")
-    print(f"Endpoint: {claimcheck.OPENROUTER_URL}")
+    print(f"Model: {selected_model}")
+    print(f"Endpoint: {endpoint}")
     print("=" * 60)
 
     for case in cases:
         total += 1
-        call_count += 1
         case_id = case["id"]
         claim_text = case["text"]
         expected = case["expected_verdict"]
@@ -529,14 +550,24 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
 
         evidence = [evidence_by_id[eid] for eid in case_evidence_ids if eid in evidence_by_id]
 
+        if not case.get("provenance_reviewed", False) or any(
+            e.get("verified_by_human") is not True for e in evidence
+        ):
+            failures.append(f"{case_id}: BLOCKED (source/case review pending)")
+            print(f"  [{case_id}] BLOCKED: source/case review pending; no API call")
+            continue
+
         print(f"\n  [{case_id}] Sending: {claim_text[:60]}...")
 
         try:
             start = time.time()
+            call_count += 1
             card = claimcheck.check_claim(
                 claim_text,
                 evidence=evidence if evidence else None,
                 client=None,  # Use real client
+                provider=provider,
+                model=selected_model,
             )
             elapsed = time.time() - start
             actual_verdict = card["verdict"]
@@ -564,22 +595,20 @@ def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
         except claimcheck.ProviderHTTPError as exc:
             failures.append(f"{case_id}: HTTP {exc.status_code}")
             print(f"    REQUEST FAILED: HTTP {exc.status_code}")
-            if exc.status_code == 429:
-                print("    Rate limited — stopping live tests.")
-                break
-            if exc.status_code == 402:
-                print("    Payment required — stopping live tests.")
-                break
-        except claimcheck.ClaimCheckError as exc:
-            failures.append(f"{case_id}: {type(exc).__name__}: {exc}")
-            print(f"    REQUEST FAILED: {type(exc).__name__}: {exc}")
-        except Exception as exc:
-            failures.append(f"{case_id}: unexpected {type(exc).__name__}: {exc}")
-            print(f"    ERROR: {type(exc).__name__}: {exc}")
+            print("    Provider failure — stopping live tests; no retry or fallback.")
+            break
+        except claimcheck.ClaimCheckError:
+            failures.append(f"{case_id}: request/validation failure; batch stopped")
+            print("    REQUEST FAILED: request/validation failure; stopping live tests.")
+            break
+        except Exception:
+            failures.append(f"{case_id}: unexpected failure; batch stopped")
+            print("    REQUEST FAILED: unexpected failure; stopping live tests.")
+            break
 
-    print(f"\nLive verdict cases: {passed}/{total} passed")
+    print(f"\nLive verdict cases: {passed}/{total} passed (reviewed cases only)")
     print(f"Live API calls made: {call_count}")
-    print(f"Model: {claimcheck.FIXED_MODEL}")
+    print(f"Model: {selected_model}")
     return passed, total, failures
 
 
@@ -591,7 +620,14 @@ def main() -> int:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="Run live tests against real Gemma endpoint (requires OPENROUTER_API_KEY).",
+        help="Run live tests with the explicitly selected free Gemma provider.",
+    )
+    parser.add_argument(
+        "--provider", choices=("openrouter", "google"), default="openrouter",
+        help="Explicit provider for opt-in live cases; no fallback.",
+    )
+    parser.add_argument(
+        "--model", default=None, help="Exact pinned free Gemma model, no auto-routing.",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -612,7 +648,9 @@ def main() -> int:
 
     if args.live:
         print("\n")
-        live_passed, live_total, live_failures = run_live_tests(args.verbose)
+        live_passed, live_total, live_failures = run_live_tests(
+            args.verbose, provider=args.provider, model=args.model
+        )
         total_passed += live_passed
         total_cases += live_total
         all_failures.extend(live_failures)

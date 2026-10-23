@@ -1,15 +1,14 @@
 # claim-checker-local
 
-**Status: Implementation committed; mock results reported by coding agent (not independently rerun here). Live Gemma call, factual-evidence review, and final submission approval PENDING. DO NOT record a verdict demo as independently verified yet.**
-
-A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** via OpenRouter, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
+**Release status (October 23, 2026):** On the owner's Mac at commit `6e0c2d5`, compilation succeeded, offline evaluation **23/23 passed**, and **34/34 Python unit tests passed**. A real Google-hosted `gemma-4-26b-a4b-it` request then produced a **validated JSON verdict card** with `UNVERIFIABLE` and no cited evidence; this is a genuine runtime success, not a mock. See [live Gemma receipt](docs/LIVE_GEMMA_RECEIPT_2026-10-23.md). **Still pending:** individual Google API usage/cost proof, independent human review of source fixtures, video recording, DEV submission verification, and owner-approved merge/publication. Do not claim authoritative factual verification or final contest entry.\n
+A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** through an explicitly selected free-only provider, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
 
 ## Quick start
 
 ### Prerequisites
 
 - **Python 3.11+** (standard library only — no pip install needed)
-- An [OpenRouter](https://openrouter.ai/) account with access to the free Gemma endpoint
+- An [OpenRouter](https://openrouter.ai/) key **or** a Google [AI Studio](https://aistudio.google.com/apikey) key from a verified free-tier project. Do not enter a paid project or reveal keys.
 - No local AI download, no Ollama, no offline model required
 
 ### Setup
@@ -20,7 +19,7 @@ git clone https://github.com/KyPython/claim-checker-local.git
 cd claim-checker-local
 
 # Set your OpenRouter API key (never commit this)
-export OPENROUTER_API_KEY="your-key-here"
+read -rs "OPENROUTER_API_KEY?OpenRouter key (hidden): "\necho\nexport OPENROUTER_API_KEY
 ```
 
 ### Run a claim check
@@ -40,6 +39,35 @@ python3 claimcheck.py --claim "Earth is the third planet from the Sun." \
 python3 claimcheck.py --claim "Some claim" --json
 ```
 
+### Explicit free Gemma provider/model choices — approved October 23
+
+The default remains `google/gemma-4-26b-a4b-it:free` on OpenRouter. Approved additional **manual**, free-only choices are:
+
+| Provider | `--model` | Private environment key | Service |
+| --- | --- | --- | --- |
+| `--provider openrouter` | `google/gemma-4-26b-a4b-it:free` (default) | `OPENROUTER_API_KEY` | OpenRouter |
+| `--provider openrouter` | `google/gemma-4-31b-it:free` | `OPENROUTER_API_KEY` | OpenRouter |
+| `--provider google` | `gemma-4-26b-a4b-it` (default for Google) | `GEMINI_API_KEY` | Native Google generateContent |
+| `--provider google` | `gemma-4-31b-it` | `GEMINI_API_KEY` | Native Google generateContent |
+
+No automatic retries, fallback, unapproved provider/model, paid route or cross-provider credential reuse. Failures remain nonzero. OpenRouter must return the exact `:free` model; Google must return the exact `modelVersion`. These controls require *actual* live verification. Google [official Gemma API](https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api) supports both named Gemma 4 models, and [current Google pricing](https://ai.google.dev/gemini-api/docs/pricing) lists Gemma 4 token prices as **free-only**; confirm your project tier and quotas in AI Studio before using its key. Free-tier data may be used by Google to improve its products.
+
+**One explicit Google Gemma call (never repeated automatically):**
+
+```bash
+cd "$HOME/claim-checker-local"
+git fetch origin audit/release-hardening-2026-10-22
+git switch audit/release-hardening-2026-10-22
+git pull --ff-only
+read -rs "GEMINI_API_KEY?Google AI Studio key (hidden): "
+echo
+export GEMINI_API_KEY
+python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it --claim "Earth is the third planet from the Sun." --json
+unset GEMINI_API_KEY
+```
+
+A valid response without supplied reviewed evidence should be `UNVERIFIABLE`, not a confident fact-check. If response/model metadata or free-tier eligibility is missing, **stop**. Do not fake the model result.
+
 ### Run evaluations
 
 ```bash
@@ -49,18 +77,45 @@ python3 evals/run_eval.py
 # Mock tests with verbose output
 python3 evals/run_eval.py -v
 
+# Additional release-contract regression tests (no network)
+python3 -m unittest discover -s evals -p 'test_*.py' -v
+
+# Compile check (no network)
+python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py
+
 # Live tests against real Gemma endpoint (requires API key, opt-in only)
 python3 evals/run_eval.py --live
+# Only after independent human case/source review:
+python3 evals/run_eval.py --live --provider google --model gemma-4-26b-a4b-it
 ```
+
+
+### October 23 response-parser incident and successful follow-up
+
+Your Mac test on SHA `249e900` demonstrated successful Python compilation, **23/23** deterministic checks, and **25/25** unittests. The first Google API request returned HTTP **400**. The next returned an HTTPS response whose `modelVersion` matched `gemma-4-26b-a4b-it` but whose content failed the older one-text-part parser. Without the raw protected response we cannot know whether it contained multiple parts, only thinking, or a non-STOP `finishReason`.
+
+**Corrections subsequently tested on Mac at `6e0c2d5` (34/34 unit tests, 23/23 mocks; one valid real Gemma response):** accept multiple final text chunks, skip `thought=true` parts, allow only one candidate with `finishReason=STOP`, reject missing/nontext/truncated/blocked output, configure Google `thinkingLevel=minimal`, and classify Google 400 errors using only safe allowlisted status enums. Neither provider messages nor thought content are printed. Google documentation: https://ai.google.dev/api/generate-content and https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api . **The latest terminal run is a real validated model response, but not an independently verified factual verdict or a cost receipt.**
+
+To validate the new head, re-run exactly:
+
+```bash
+cd "$HOME/claim-checker-local"
+git pull --ff-only
+python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py evals/test_release_gate.py evals/test_provider_routing.py
+python3 evals/run_eval.py -v
+python3 -m unittest discover -s evals -p 'test_*.py' -v
+```
+
+No key, network, inference, or billing is needed for these tests. Only after they pass and the selected Google AI Studio project is confirmed free-tier should another **single manually authorized** Gemma request be attempted. It could still fail; preserve and report the result, do not retry automatically.
 
 ## How it works
 
 1. **Input validation**: Accepts a single claim via `--claim` or stdin. Trims whitespace, enforces 2,000-character limit, rejects blank input.
 2. **Evidence loading** (optional): Reads a curated JSON evidence file with reviewed source excerpts.
 3. **Prompt construction**: Builds a structured prompt with the claim as DATA (not instructions) and any supplied evidence.
-4. **Inference**: Sends exactly one HTTPS request to `https://openrouter.ai/api/v1/chat/completions` with the fixed model `google/gemma-4-26b-a4b-it:free`.
-5. **Response validation**: Strictly validates the response JSON: enum verdict, non-empty rationale, evidence IDs only from supplied sources, model tag verification.
-6. **Grounding rule**: Without reviewed evidence, only `UNVERIFIABLE` is accepted. The model cannot give a confident TRUE/FALSE/MISLEADING verdict based on training data alone.
+4. **Inference**: Sends exactly one HTTPS request to the explicitly selected allowlisted free Gemma provider/model. Default is OpenRouter 26B `:free`; Google native Gemma 4 26B/31B are approved manual options. No fallback or retries.
+5. **Response validation**: Strictly validates the response JSON: enum verdict, non-empty rationale, evidence IDs only from supplied sources, **exact free model tag** (missing/stripped :free fails), and sanitization of malformed model-output errors.
+6. **Grounding rule**: A confident verdict requires cited evidence IDs with explicit `verified_by_human=true` source declarations and complete basic metadata. Unreviewed fixtures cannot produce a confident card. **Important:** local review flags are user assertions, not cryptographic or semantic proof that the evidence is true, timely, authentic or logically entails a verdict. Human source/adjudication checks remain necessary.
 
 ### Verdict semantics
 
@@ -93,32 +148,33 @@ HTTP failures are never disguised as successful `UNVERIFIABLE` verdicts. Exit co
 
 The evaluation suite (`evals/run_eval.py`) includes:
 
-- **8 golden verdict cases**: 2× TRUE, 3× FALSE, 1× MISLEADING, 2× UNVERIFIABLE
+- **8 candidate verdict cases**: 3× TRUE, 2× FALSE, 1× MISLEADING, 2× UNVERIFIABLE. The disputed ocean case was corrected to TRUE. All eight `provenance_reviewed` flags remain false pending actual review.
 - **11 error-handling tests**: HTTP 401/402/429/500, timeout, unreachable, malformed JSON, wrong model, missing fields, fabricated source IDs, confident verdict without evidence
 - **4 input validation tests**: blank claim, too-long claim, null claim, missing API key
+- **At SHA `6e0c2d5`:** 34/34 owner-run unittests (including multipart, finish-reason, and safe 400 diagnostics), plus 23/23 mocks and a real successfully validated Gemma card.
 
-**Coding-agent-reported mock results (23/23; independent rerun still required):**
+**Owner-observed mock contract result at SHA `249e900` (October 23, 2026; not proof of factual accuracy):**
 ```
 Mock verdict cases: 8/8 passed
 Validation tests: 15/15 passed
 Total: 23/23 passed
 ```
 
-Live Gemma test results: **PENDING** — requires owner opt-in with a verified free API key. Do not represent the mock verdict outputs as proof of runtime inference or factual accuracy.
+Release candidate code at SHA `6e0c2d5`: **executed on Mac (23/23 mocks, 34/34 unittests, compilation successful)**. Native Google Gemma 4 26B returned a successful, contract-valid `UNVERIFIABLE` card without evidence. This is real inference, not a source-grounded benchmark. No eight-case live golden evaluation has been completed.
 
-**Known release blockers (2026-10-22 source review):** provider response model metadata may be missing or omit `:free` while current validator still accepts it; free-route billing must be confirmed independently, and actual source provenance needs review. Test case 06 ('The ocean contains most of Earth's water') is literally true according to NOAA, yet its expected label is MISLEADING; resolve the evaluation oracle before treating an 8/8 score as evidence of accuracy. See issue #1 for full review gate.
+**Remaining blockers:** Human review flags for the six source fixtures are still false; no semantic entailment/accuracy proof exists. Provider-specific usage and price for the real Google call are not captured. No authentic screen-recorded demo, confirmed DEV entry eligibility/form access, submitted URL, or owner-approved merge exists. The hardening code itself has now passed the observed Mac tests. See issue #1 and the [live-model receipt](docs/LIVE_GEMMA_RECEIPT_2026-10-23.md).
 
 ## Fixed model and provider
 
-- **Model**: `google/gemma-4-26b-a4b-it:free` (exact API ID, no substitution)
-- **Provider**: OpenRouter HTTPS API only
-- **No fallbacks**: No `openrouter/free` router, no paid models, no local Ollama, no closed models
+- **Default model**: `google/gemma-4-26b-a4b-it:free`. Only other allowlisted manual free Gemma selections in the table above.
+- **Provider**: OpenRouter HTTPS API default or Google native hosted Gemma API when explicitly selected.
+- **No automatic fallbacks**: No `openrouter/free` router, no paid models, no local Ollama, no closed models.
 - **Budget**: One inference call per claim; eval capped at 8 live cases per run
 
 ## Privacy and limitations
 
 > **⚠ Important:**
-> - Claim text is sent to a **remote inference provider** (OpenRouter → Gemma). Do not submit secrets, confidential information, or sensitive personal data.
+> - Claim text is sent to the selected **remote inference provider** (OpenRouter or Google's Gemini API → Gemma). Do not submit secrets, confidential information, or sensitive personal data.
 > - This tool does **not** claim offline operation, end-to-end privacy, or zero provider retention.
 > - Results are **AI-generated preliminary assessments**, not medical, legal, or financial advice.
 > - Real-model outputs are **provisional**, not independent fact-checks.
@@ -132,6 +188,7 @@ evals/
     claims.json            # 8 golden evaluation cases
     evidence.json          # Curated evidence excerpts with provenance
     run_eval.py            # Mock + opt-in live evaluation runner
+    test_provider_routing.py # Google response + 400 regressions (34 total unittests passed at 6e0c2d5)
 specs/
     claim-checker-local/
         requirements.md    # R01–R12 requirements (EARS format)
