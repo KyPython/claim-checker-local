@@ -1,7 +1,6 @@
 # claim-checker-local
 
-**Status (October 23, 2026, 2:48 PM ET):** At Mac-verified code SHA `249e900`, Python compilation passed, the offline evaluation passed **23/23**, and unittest discovery passed **25/25** (twice observed in the terminal log). Google Gemma live requests were made: first **HTTP 400**, second returned a response with the exact model identity but failed to yield a usable final text candidate. **No successful verdict card or zero-cost usage receipt** yet. After these receipts, the Google response adapter was hardened to parse multipart final answers, ignore thinking-only parts, reject non-STOP finish reasons, request minimal thinking, and provide safe 400 diagnostics. **That newer code and its additional tests have NOT yet been run on the owner's Mac.** Human source review and the DEV final demo/submission remain pending. **NOT FINAL RELEASE.**
-
+**Release status (October 23, 2026):** On the owner's Mac at commit `6e0c2d5`, compilation succeeded, offline evaluation **23/23 passed**, and **34/34 Python unit tests passed**. A real Google-hosted `gemma-4-26b-a4b-it` request then produced a **validated JSON verdict card** with `UNVERIFIABLE` and no cited evidence; this is a genuine runtime success, not a mock. See [live Gemma receipt](docs/LIVE_GEMMA_RECEIPT_2026-10-23.md). **Still pending:** individual Google API usage/cost proof, independent human review of source fixtures, video recording, DEV submission verification, and owner-approved merge/publication. Do not claim authoritative factual verification or final contest entry.\n
 A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** through an explicitly selected free-only provider, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
 
 ## Quick start
@@ -91,11 +90,11 @@ python3 evals/run_eval.py --live --provider google --model gemma-4-26b-a4b-it
 ```
 
 
-### October 23 live-response parsing correction
+### October 23 response-parser incident and successful follow-up
 
 Your Mac test on SHA `249e900` demonstrated successful Python compilation, **23/23** deterministic checks, and **25/25** unittests. The first Google API request returned HTTP **400**. The next returned an HTTPS response whose `modelVersion` matched `gemma-4-26b-a4b-it` but whose content failed the older one-text-part parser. Without the raw protected response we cannot know whether it contained multiple parts, only thinking, or a non-STOP `finishReason`.
 
-**New unexecuted corrections:** accept multiple final text chunks, skip `thought=true` parts, allow only one candidate with `finishReason=STOP`, reject missing/nontext/truncated/blocked output, configure Google `thinkingLevel=minimal`, and classify Google 400 errors using only safe allowlisted status enums. Neither provider messages nor thought content are printed. Google documentation: https://ai.google.dev/api/generate-content and https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api . **Do not treat the prior response or mock output as a real verified verdict.**
+**Corrections subsequently tested on Mac at `6e0c2d5` (34/34 unit tests, 23/23 mocks; one valid real Gemma response):** accept multiple final text chunks, skip `thought=true` parts, allow only one candidate with `finishReason=STOP`, reject missing/nontext/truncated/blocked output, configure Google `thinkingLevel=minimal`, and classify Google 400 errors using only safe allowlisted status enums. Neither provider messages nor thought content are printed. Google documentation: https://ai.google.dev/api/generate-content and https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api . **The latest terminal run is a real validated model response, but not an independently verified factual verdict or a cost receipt.**
 
 To validate the new head, re-run exactly:
 
@@ -152,7 +151,7 @@ The evaluation suite (`evals/run_eval.py`) includes:
 - **8 candidate verdict cases**: 3× TRUE, 2× FALSE, 1× MISLEADING, 2× UNVERIFIABLE. The disputed ocean case was corrected to TRUE. All eight `provenance_reviewed` flags remain false pending actual review.
 - **11 error-handling tests**: HTTP 401/402/429/500, timeout, unreachable, malformed JSON, wrong model, missing fields, fabricated source IDs, confident verdict without evidence
 - **4 input validation tests**: blank claim, too-long claim, null claim, missing API key
-- **At SHA 249e900:** 25/25 owner-run unittests, including 10 provider-route tests; newer multipart/finish-reason/400-diagnostic tests pending rerun.
+- **At SHA `6e0c2d5`:** 34/34 owner-run unittests (including multipart, finish-reason, and safe 400 diagnostics), plus 23/23 mocks and a real successfully validated Gemma card.
 
 **Owner-observed mock contract result at SHA `249e900` (October 23, 2026; not proof of factual accuracy):**
 ```
@@ -161,9 +160,9 @@ Validation tests: 15/15 passed
 Total: 23/23 passed
 ```
 
-Release hardening and provider-routing at SHA 249e900: **EXECUTED on Mac (23/23 mocks; 25/25 unittests; compile passed)**. Subsequent Google multipart/finish-reason/400-diagnostic corrections and their new tests are **NOT YET EXECUTED**. With existing review flags false, positive mock cases now verify that confident model responses are rejected, rather than certifying truth. Live Gemma verdict results: **BLOCKED** — Google request #1 HTTP 400; Google request #2 passed response model identity but the adapter could not extract a single usable text candidate. No validated verdict yet. Live golden sourced cases are blocked until the person reviewing them actually approves the evidence. Do not represent mock verdict outputs as runtime inference or factual accuracy.
+Release candidate code at SHA `6e0c2d5`: **executed on Mac (23/23 mocks, 34/34 unittests, compilation successful)**. Native Google Gemma 4 26B returned a successful, contract-valid `UNVERIFIABLE` card without evidence. This is real inference, not a source-grounded benchmark. No eight-case live golden evaluation has been completed.
 
-**Release blockers after code hardening (Oct 22):** Response model must now match the exact `:free` tag; a provider that reports a base-model alias (or omits the field) will cause a safe failure, and actual billing-route verification is still needed. Evidence human-review flags and claim provenance remain false. Case 06 was relabeled TRUE, but sources have not been independently human-adjudicated. The first hardening code SHA 70dbf31 was actually run on the owner's Mac (23 mocks plus 15 unittests passed); the newer provider-routing changes have NOT been run there. Unrelated or contradictory evidence is not semantically proven safe by schema validation; human review remains essential. See issue #1. Draft DEV post (NOT to publish as-is): [docs/DEV_WEEK3_SUBMISSION_DRAFT.md](docs/DEV_WEEK3_SUBMISSION_DRAFT.md).
+**Remaining blockers:** Human review flags for the six source fixtures are still false; no semantic entailment/accuracy proof exists. Provider-specific usage and price for the real Google call are not captured. No authentic screen-recorded demo, confirmed DEV entry eligibility/form access, submitted URL, or owner-approved merge exists. The hardening code itself has now passed the observed Mac tests. See issue #1 and the [live-model receipt](docs/LIVE_GEMMA_RECEIPT_2026-10-23.md).
 
 ## Fixed model and provider
 
@@ -189,7 +188,7 @@ evals/
     claims.json            # 8 golden evaluation cases
     evidence.json          # Curated evidence excerpts with provenance
     run_eval.py            # Mock + opt-in live evaluation runner
-    test_provider_routing.py # Current Google response + 400 regressions (rerun pending)
+    test_provider_routing.py # Google response + 400 regressions (34 total unittests passed at 6e0c2d5)
 specs/
     claim-checker-local/
         requirements.md    # R01–R12 requirements (EARS format)
