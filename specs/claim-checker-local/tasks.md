@@ -1,6 +1,21 @@
 # Implementation tasks — claim-checker-local (Kiro-style SPEC v2)
-Status: **PLANNED ONLY. Do not check an item off without the corresponding real execution receipt.**
-Source of truth: [issue #1](https://github.com/KyPython/claim-checker-local/issues/1); [requirements](./requirements.md); [design](./design.md). Deadline: Oct 25, 2026 11:59 PM PDT (Oct 26 02:59 AM ET).
+Status: **Local implementation and handoff documentation prepared; live inference, independent source review, demo recording, human code review, and publication remain pending.** Checked items require a corresponding receipt; an unchecked item may be partly implemented without satisfying its full gate.
+Source of truth: [issue #1](https://github.com/KyPython/claim-checker-local/issues/1); [requirements](./requirements.md); [design](./design.md); [completion requirements written before the October 23 changes](./completion.md). Deadline: Oct 25, 2026 11:59 PM PDT (Oct 26 02:59 AM EDT).
+
+## October 23 completion status
+
+Current execution evidence belongs in the [A1–A12 local verification receipt](../../docs/verification-2026-10-23.md). The original requirements/design status lines describe their pre-implementation state; they do not override this execution record.
+
+| Work | Current state and remaining gate |
+|---|---|
+| Preflight | Public provider listing/routing documentation and official challenge/template checked; account allowance, live compatibility, personal eligibility, and signed-in submission form remain unverified |
+| Core CLI and offline validation | Completion hardening implemented; offline core/transport checks and candidate/synthetic evaluation passed; final command/results belong in the verification receipt |
+| Candidate evaluation | Eight candidate cases retained; none independently reviewed; only UNVERIFIABLE allowed without a separate valid review receipt |
+| Live model and factual review | **BLOCKED / NOT RUN** in this completion run; no key present, no live calls authorized, and no human evidence-review receipt supplied |
+| Documentation | README updated; [real-run demo checklist](../../docs/demo.md) and [unpublished DEV draft](../../docs/dev-submission-draft.md) prepared with explicit missing live/demo evidence |
+| Human review and submission | **PENDING / NOT SUBMITTED**; no inferred approval, recorded demo, published post, or human code-review claim |
+
+Initial code is attributed to Claude Opus 4.6 (Thinking) via Antigravity. October 23 completion changes, regression checks, and documentation are attributed to OpenAI Codex. Agent-run checks are not human review or proof of live inference. No real human review receipt is bundled.
 
 ## Ownership and execution boundaries
 
@@ -45,10 +60,10 @@ Source of truth: [issue #1](https://github.com/KyPython/claim-checker-local/issu
 
 ## Phase 4 — Honest documentation and no-narration demo
 
-- [ ] T4.1 Update README to remove prebuild status **only when the app is really implemented**; include prerequisites, setup, `OPENROUTER_API_KEY` handling, exact model tag, command, mock and live eval modes, privacy disclaimer, limitations and actual tests. Credit original private Oct-17 claim-checker idea accurately.
+- [x] T4.1 Update README to remove prebuild status **only when the app is really implemented**; include prerequisites, setup, `OPENROUTER_API_KEY` handling, exact model tag, command, mock and live eval modes, privacy disclaimer, limitations and actual tests. Credit original private Oct-17 claim-checker idea accurately. **Receipt:** [README](../../README.md); exact local test results in the [verification receipt](../../docs/verification-2026-10-23.md), live gates explicitly pending.
 - [ ] T4.2 Check git diff for provider keys, private code, copied text, confidential data, accidental logs, and attribution inflation. Confirm repo created Oct22, code new in window and any reused material significant/credited.
 - [ ] T4.3 Record **60–90-second SCREEN DEMO only** after working program: input claim → observed card; insufficient-evidence claim → UNVERIFIABLE; actual Gemma model info; actual test suite result. Captions optional; no filming how the code was produced; no Wi-Fi-off pretense.
-- [ ] T4.4 Prepare DEV template sections based on **real** outcomes: What I Built, Demo, Code, How I Built It, Why Does Open Innovation Matter?, Prize Categories (Gemma if proven). Agent Session OPTIONAL, Lazy Payoff OPTIONAL if real measured time saved. No invented quote or benchmark.
+- [x] T4.4 Prepare DEV template sections based on **real** outcomes: What I Built, Demo, Code, How I Built It, Why Does Open Innovation Matter?, Prize Categories (Gemma if proven). Agent Session OPTIONAL, Lazy Payoff OPTIONAL if real measured time saved. No invented quote or benchmark. **Receipt:** [unpublished draft](../../docs/dev-submission-draft.md); missing live/demo/category evidence is visibly PENDING, so this is not approval to submit.
 - **Exit evidence:** A9–A11, README accurate, video exists, no publish yet.
 
 ## Phase 5 — Final human approval and submission (R12)

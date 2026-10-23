@@ -1,160 +1,152 @@
 # claim-checker-local
 
-**Status: Implementation committed; mock results reported by coding agent (not independently rerun here). Live Gemma call, factual-evidence review, and final submission approval PENDING. DO NOT record a verdict demo as independently verified yet.**
+A Python claim-triage CLI designed to send one claim to cloud-hosted open-weight **Gemma** through OpenRouter and return a provisional verdict card. The CLI runs locally; model inference is remote.
 
-A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** via OpenRouter, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
+**Status — October 23, 2026:** local implementation and offline validation are documented in the [verification receipt](docs/verification-2026-10-23.md). **Live Gemma inference, independent evidence review, a recorded demo, human code review, and final submission approval remain pending. No DEV entry has been published by this completion run.** Mock results demonstrate software behavior, not factual accuracy or actual Gemma execution.
 
-## Quick start
+This project targets the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19). Best Use of Gemma remains a conditional category until a real Gemma receipt exists.
 
-### Prerequisites
+## Run offline checks first
 
-- **Python 3.11+** (standard library only — no pip install needed)
-- An [OpenRouter](https://openrouter.ai/) account with access to the free Gemma endpoint
-- No local AI download, no Ollama, no offline model required
-
-### Setup
+Requires **Python 3.11+**, with no third-party packages or local model installation.
 
 ```bash
-# Clone the repository
 git clone https://github.com/KyPython/claim-checker-local.git
 cd claim-checker-local
 
-# Set your OpenRouter API key (never commit this)
-export OPENROUTER_API_KEY="your-key-here"
-```
-
-### Run a claim check
-
-```bash
-# Via --claim flag
-python3 claimcheck.py --claim "Earth is the third planet from the Sun."
-
-# Via stdin
-echo "Pluto is a full planet." | python3 claimcheck.py
-
-# With reviewed evidence file
-python3 claimcheck.py --claim "Earth is the third planet from the Sun." \
-  --evidence-file evals/evidence.json
-
-# JSON output
-python3 claimcheck.py --claim "Some claim" --json
-```
-
-### Run evaluations
-
-```bash
-# Mock tests (offline, no API key needed, deterministic)
+# Deterministic evaluation; no key or network required.
 python3 evals/run_eval.py
 
-# Mock tests with verbose output
-python3 evals/run_eval.py -v
-
-# Live tests against real Gemma endpoint (requires API key, opt-in only)
-python3 evals/run_eval.py --live
+# Adversarial regression tests; no key or network required.
+python3 -m unittest discover -s tests -v
 ```
 
-## How it works
+The evaluation prints each candidate's review status, effective allowed outcomes, observed outcome, and request counts. The eight candidate cases cover four *intended* label categories, but every bundled fixture is unreviewed: **only `UNVERIFIABLE` is currently allowed**. Synthetic review receipts in tests exercise the approval boundary; they do not establish human review. Exact executed checks and results belong in the [verification receipt](docs/verification-2026-10-23.md).
 
-1. **Input validation**: Accepts a single claim via `--claim` or stdin. Trims whitespace, enforces 2,000-character limit, rejects blank input.
-2. **Evidence loading** (optional): Reads a curated JSON evidence file with reviewed source excerpts.
-3. **Prompt construction**: Builds a structured prompt with the claim as DATA (not instructions) and any supplied evidence.
-4. **Inference**: Sends exactly one HTTPS request to `https://openrouter.ai/api/v1/chat/completions` with the fixed model `google/gemma-4-26b-a4b-it:free`.
-5. **Response validation**: Strictly validates the response JSON: enum verdict, non-empty rationale, evidence IDs only from supplied sources, model tag verification.
-6. **Grounding rule**: Without reviewed evidence, only `UNVERIFIABLE` is accepted. The model cannot give a confident TRUE/FALSE/MISLEADING verdict based on training data alone.
+## Run an actual claim
 
-### Verdict semantics
+A live invocation requires an OpenRouter account, a process-environment `OPENROUTER_API_KEY`, and owner-confirmed free allowance for the exact endpoint. Configure the key locally without pasting it into chat, screenshots, or committed files. The CLI does not load `.env` files automatically.
 
-| Verdict | Meaning |
+After confirming access and allowance:
+
+```bash
+python3 claimcheck.py --claim "Earth is the third planet from the Sun."
+
+printf '%s\n' 'An unsupported claim.' | python3 claimcheck.py --json
+
+# Candidate evidence alone still permits only UNVERIFIABLE.
+python3 claimcheck.py --claim "Earth is the third planet from the Sun." \
+  --evidence-file evals/evidence.json
+```
+
+These commands make a real remote request; they are not offline examples. No successful output from them is claimed here. Without a key the CLI exits with a configuration error and makes zero requests. `--claim` takes precedence over stdin when both are supplied. Claims are trimmed, must be nonblank, and are limited to 2,000 characters.
+
+The request uses the fixed URL `https://openrouter.ai/api/v1/chat/completions` and exact model `google/gemma-4-26b-a4b-it:free`. There is at most one inference request per valid claim, a 30-second timeout, zero-price provider limits, and no redirects, retries, or provider/model fallbacks. These controls do not prove current account allowance or successful zero-cost routing. The [public model listing](https://openrouter.ai/api/v1/models) and [routing controls](https://openrouter.ai/docs/guides/routing/provider-selection) are provider documentation, not a live execution receipt.
+
+**Live metadata compatibility is untested.** The validator intentionally requires the full exact `:free` response tag under the completion specification. Missing or different provider metadata, including a base ID without `:free`, fails the request. If the provider reports only a base ID, resolving that needs a reviewed specification/provider decision; the app never silently relaxes the check. Matching metadata is a contract check, not cryptographic proof of model provenance.
+
+## Evidence and the review boundary
+
+Evidence is candidate data. Neither a source-looking URL nor `verified_by_human: true` in an evidence file authorizes a confident verdict. The app does not browse, verify source quotations, or independently establish entailment.
+
+An evidence file uses `claim-evidence/v1` and an `evidence` list. Each entry needs a unique nonempty `id`, `publisher`, `title`, HTTPS `url`, ISO `date`, and bounded nonempty `excerpt`. See [evals/evidence.json](evals/evidence.json) for the candidate format; its excerpts, dates, and provenance still need independent review.
+
+A confident label additionally requires a separately supplied **local owner review receipt**. After independently checking the exact claim, source provenance, excerpts, relevance, and any conflicting or missing context, the reviewer records one approved label and the supporting source IDs. The receipt schema is:
+
+```json
+{
+  "schema": "claim-review/v1",
+  "claim": "Earth is the third planet from the Sun.",
+  "verdict": "TRUE",
+  "evidence_ids": ["source-01"],
+  "evidence_sha256": "REPLACE_WITH_DIGEST_ONLY_AFTER_INDEPENDENT_REVIEW",
+  "reviewed_by": "REPLACE_WITH_ACTUAL_REVIEWER",
+  "reviewed_on": "YYYY-MM-DD"
+}
+```
+
+**This is an invalid, illustrative receipt, not evidence of a completed review. No real human-review receipt is bundled.** Compute the content digest for the *complete evidence list supplied to that invocation*, including metadata:
+
+```bash
+python3 -c 'from claimcheck import evidence_digest, load_evidence_file; print(evidence_digest(load_evidence_file("evals/evidence.json")))'
+```
+
+The helper hashes UTF-8 JSON after sorting the evidence list by ID, with sorted object keys, `ensure_ascii=False`, and compact separators. For the CLI command above, this is the whole `evals/evidence.json` evidence list. The evaluation runner selects a smaller list per case; its receipt workflow is described below. Changing any bound content requires a new independent review and receipt. A digest binds content; it does not authenticate reviewer identity. Supplying a receipt is an explicit local trust decision.
+
+Only after that real review, save the completed receipt locally and pass it with the same evidence:
+
+```bash
+python3 claimcheck.py --claim "Earth is the third planet from the Sun." \
+  --evidence-file evals/evidence.json --review-file /path/to/local-review.json
+```
+
+Malformed, mismatched, duplicate, empty-source, or stale-content receipts fail before inference. With a valid receipt, the model may abstain or return the approved label; a confident card must cite exactly the approved source IDs. A model answer cannot approve itself.
+
+| Verdict | Provisional meaning with independently reviewed evidence |
 |---|---|
-| **TRUE** | Supplied reviewed evidence directly supports the claim |
-| **FALSE** | Supplied reviewed evidence directly contradicts the claim |
-| **MISLEADING** | Evidence supports part of the claim but omits material context |
-| **UNVERIFIABLE** | Evidence is absent, insufficient, or inadequate |
+| `TRUE` | Directly supports the material claim |
+| `FALSE` | Directly contradicts the material claim |
+| `MISLEADING` | Supports part of the claim, but missing context materially changes interpretation |
+| `UNVERIFIABLE` | Evidence is absent, unreviewed, insufficient, conflicting, or otherwise inadequate |
 
-These are **provisional AI-assisted classifications**, not externally accredited facts.
+## Opt-in live evaluation
 
-### Error handling
+The completion run made **no live inference calls**. The live runner requires both flags, the environment key, and confirmed free allowance:
 
-| Condition | Behavior |
-|---|---|
-| No API key | Configuration error, no HTTP call, exit 1 |
-| Blank/too-long input | Input error, no HTTP call, exit 1 |
-| HTTP 401/402 | REQUEST FAILED with specific message, exit 1 |
-| HTTP 429 | REQUEST FAILED: rate limited, exit 1 |
-| Timeout / 5xx | REQUEST FAILED: provider error, exit 1 |
-| Malformed JSON | REQUEST FAILED: parse error, exit 1 |
-| Wrong model returned | REQUEST FAILED: model mismatch, exit 1 |
-| Fabricated source IDs | REQUEST FAILED: validation error, exit 1 |
-| Confident verdict without evidence | REQUEST FAILED: grounding violation, exit 1 |
-
-HTTP failures are never disguised as successful `UNVERIFIABLE` verdicts. Exit code 0 only on a schema-valid, successfully processed verdict card.
-
-## Test suite
-
-The evaluation suite (`evals/run_eval.py`) includes:
-
-- **8 golden verdict cases**: 2× TRUE, 3× FALSE, 1× MISLEADING, 2× UNVERIFIABLE
-- **11 error-handling tests**: HTTP 401/402/429/500, timeout, unreachable, malformed JSON, wrong model, missing fields, fabricated source IDs, confident verdict without evidence
-- **4 input validation tests**: blank claim, too-long claim, null claim, missing API key
-
-**Coding-agent-reported mock results (23/23; independent rerun still required):**
-```
-Mock verdict cases: 8/8 passed
-Validation tests: 15/15 passed
-Total: 23/23 passed
+```bash
+python3 evals/run_eval.py --live --confirm-free-allowance
 ```
 
-Live Gemma test results: **PENDING** — requires owner opt-in with a verified free API key. Do not represent the mock verdict outputs as proof of runtime inference or factual accuracy.
+This sends at most eight requests, counts actual attempts, stops after provider failure, and never retries. Missing prerequisites produce `BLOCKED` with a nonzero exit. An abstention on an unreviewed candidate is not verified coverage of its intended TRUE/FALSE/MISLEADING category. Free-route availability and account limits may change; the flag is a human confirmation, not an account-balance check.
 
-**Known release blockers (2026-10-22 source review):** provider response model metadata may be missing or omit `:free` while current validator still accepts it; free-route billing must be confirmed independently, and actual source provenance needs review. Test case 06 ('The ocean contains most of Earth's water') is literally true according to NOAA, yet its expected label is MISLEADING; resolve the evaluation oracle before treating an 8/8 score as evidence of accuracy. See issue #1 for full review gate.
+To evaluate independently reviewed candidates later, supply `--review-dir /path/to/local-reviews`. Save each real `claim-review/v1` receipt as its case ID plus `.json`, for example `case-01.json`. Its claim and approved verdict must match the candidate, and its digest must bind **exactly that case's supplied evidence subset**, not the whole corpus. The following offline helper shows the candidate fields and subset digest; it does not perform or attest to review:
 
-## Fixed model and provider
+```bash
+python3 - <<'PY'
+from claimcheck import evidence_digest
+from evals.run_eval import load_cases
 
-- **Model**: `google/gemma-4-26b-a4b-it:free` (exact API ID, no substitution)
-- **Provider**: OpenRouter HTTPS API only
-- **No fallbacks**: No `openrouter/free` router, no paid models, no local Ollama, no closed models
-- **Budget**: One inference call per claim; eval capped at 8 live cases per run
-
-## Privacy and limitations
-
-> **⚠ Important:**
-> - Claim text is sent to a **remote inference provider** (OpenRouter → Gemma). Do not submit secrets, confidential information, or sensitive personal data.
-> - This tool does **not** claim offline operation, end-to-end privacy, or zero provider retention.
-> - Results are **AI-generated preliminary assessments**, not medical, legal, or financial advice.
-> - Real-model outputs are **provisional**, not independent fact-checks.
-> - Free-tier rate limits and availability may change without notice; daily provider quotas are not guaranteed.
-
-## File structure
-
-```
-claimcheck.py              # CLI and core logic (stdlib only)
-evals/
-    claims.json            # 8 golden evaluation cases
-    evidence.json          # Curated evidence excerpts with provenance
-    run_eval.py            # Mock + opt-in live evaluation runner
-specs/
-    claim-checker-local/
-        requirements.md    # R01–R12 requirements (EARS format)
-        design.md          # Architecture and output contract
-        tasks.md           # Phased implementation tasks
-.gitignore                 # Excludes .env, __pycache__, etc.
-README.md                  # This file
+cases, sources = load_cases()
+case = next(item for item in cases if item["id"] == "case-01")
+evidence = [sources[source_id] for source_id in case["evidence_ids"]]
+print("claim:", case["text"])
+print("intended verdict:", case["expected_verdict"])
+print("evidence_ids:", case["evidence_ids"])
+print("evidence_sha256:", evidence_digest(evidence))
+PY
 ```
 
-## Canonical specification
+Only after genuine independent review and confirmed live prerequisites:
 
-See **[GitHub issue #1 — SPEC v2](https://github.com/KyPython/claim-checker-local/issues/1)** for the complete implementation prompt, architecture, security/privacy conditions, A1–A12 acceptance tests, golden claim evaluation contract, demo requirements and submission gate.
+```bash
+python3 evals/run_eval.py --live --confirm-free-allowance \
+  --review-dir /path/to/local-reviews
+```
+
+All supplied case receipts are validated before any live attempt. A valid receipt permits the approved intended label or honest abstention; a missing receipt leaves that case explicitly unreviewed and allows only `UNVERIFIABLE`. Cases without adequate sources must remain unreviewed. The runner reports reviewed coverage separately, so an all-abstention run is never presented as four-label accuracy. Do not change fixture review flags or create receipts merely to obtain a passing score.
+
+## Output, failures, and privacy
+
+A successful card contains exactly `claim`, `verdict`, `rationale`, `what_would_settle_it`, `model`, `evidence_ids`, and `disclosure`. The code controls the claim, model label, and disclosure. `--json` preserves literal text as JSON; human-readable output escapes terminal controls.
+
+Transport and validation failures produce **REQUEST FAILED** with a nonzero exit, never a successful `UNVERIFIABLE` card. This includes HTTP 401/402/429/5xx, timeouts, unreachable providers, malformed or truncated responses, missing/wrong model metadata, unknown or duplicate citations, and unsupported confident labels. Errors use sanitized fixed messages. Input, evidence, review, and key validation failures make zero requests; exit 0 is reserved for a valid card.
+
+Claim text and supplied excerpts travel to OpenRouter and its inference provider. Do not submit secrets, confidential information, or sensitive personal data. The CLI does not persist claims or keys, but cannot promise offline inference, end-to-end privacy, or no provider retention. Cards are AI-generated preliminary assessments, not authoritative fact-checks or medical, legal, or financial advice.
+
+## Specification, demo, and submission
+
+Implementation follows [issue #1 — SPEC v2](https://github.com/KyPython/claim-checker-local/issues/1), [requirements R01–R12](specs/claim-checker-local/requirements.md), the [design](specs/claim-checker-local/design.md), and the [completion requirements](specs/claim-checker-local/completion.md) written before these completion changes. The original requirements/design status lines describe their pre-implementation state; current execution status is in the [verification receipt](docs/verification-2026-10-23.md) and [tasks](specs/claim-checker-local/tasks.md).
+
+- [A1–A12 local verification receipt](docs/verification-2026-10-23.md)
+- [60–90-second real-run demo checklist](docs/demo.md) — recording pending
+- [Unpublished DEV draft](docs/dev-submission-draft.md) — conspicuous live/demo placeholders remain
+
+The [official challenge page](https://dev.to/challenges/hacktoberfest-week3-2026-10-19) requires one DEV post with `devchallenge`/`hf26challenge` tags and a video or deployed demo. The deadline is **October 25, 2026, 11:59 PM PDT** (October 26, 2:59 AM EDT). Before publication, the owner must confirm personal eligibility and the active form, review originality/code/evidence, verify real free Gemma results, record the demo, and approve the final post. No submission, partner qualification, or contest outcome is asserted. Any commits after the deadline must be identified here.
 
 ## Credit and provenance
 
-- **Verdict-card concept and mandatory UNVERIFIABLE outcome**: Adapted from earlier **private** project `KyPython/claim-checker` (concept begun October 17, 2026).
-- **This implementation**: New and distinct, begun October 22, 2026 using cloud-served Gemma, during the contest window (Oct 19–25).
-- **Implementation agent**: Claude Opus 4.6 (Thinking) via Antigravity — agent-generated code, attributed here.
-- **Spec authoring**: ChatGPT as AI-authored documentation (requirements.md, design.md, tasks.md).
-- **Owner review and approval**: Owner committed the agent's work; independent human review of these exact source excerpts, security conditions and final results is **not yet evidenced**.
-
-## Challenge deadline
-
-Submit **one** post through DEV's Week 3 template with the `#hf26challenge` tag, a working video **or** deployed demo, a code link, open-source AI explanation, and properly attributed build notes by **October 25, 2026, 11:59 PM PDT**. A video may be a **60–90-second demonstration of functionality**, not a coding-process recording.
-
-Changes committed *after* the contest deadline must be identified here if any occur.
+- The verdict-card idea and required `UNVERIFIABLE` outcome originated in the earlier private `KyPython/claim-checker` concept, begun October 17, 2026. This repository is a distinct implementation begun October 22 for the October 19–25 window; originality review remains an owner gate.
+- Initial code: **Claude Opus 4.6 (Thinking), via Antigravity**.
+- Initial requirements/design/task documentation: **ChatGPT**, AI-authored.
+- October 23 completion hardening, regression tests, local verification, and handoff documentation: **OpenAI Codex**, agent-authored and agent-run.
+- Independent human code review, review of the bundled source excerpts, and human-run tests are **not evidenced** by agent execution or by an owner commit.

@@ -1,640 +1,410 @@
 #!/usr/bin/env python3
-"""
-Evaluation runner for claim-checker-local.
-
-Default mode:  Fully offline mock-HTTP evaluation using deterministic
-               fixture responses.  No network, no API key required.
-
---live mode:   Opt-in real Gemma evaluation against the free endpoint.
-               Requires OPENROUTER_API_KEY.  Hard-capped at 8 cases.
-               Reports actual per-case results, not pre-determined passes.
-
-Usage:
-    python evals/run_eval.py              # mock-only (default)
-    python evals/run_eval.py --live       # opt-in live Gemma test
-    python evals/run_eval.py --live -v    # live with verbose output
-"""
-
+"""Offline software checks and explicitly gated live candidate evaluation."""
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
-import sys
-import time
 from pathlib import Path
+import re
+import sys
 from typing import Any
+from unittest.mock import patch
 
-# Add parent directory to path for claimcheck import
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 import claimcheck
 
-# ── Constants ────────────────────────────────────────────────────────
 MAX_LIVE_CASES = 8
+MAX_FIXTURE_BYTES = 128 * 1024
+MOCK_KEY = "mock-test-key-not-real"
 EVALS_DIR = Path(__file__).resolve().parent
 CLAIMS_FILE = EVALS_DIR / "claims.json"
 EVIDENCE_FILE = EVALS_DIR / "evidence.json"
 
 
-# ── Mock HTTP client ─────────────────────────────────────────────────
-class MockHttpClient:
-    """Deterministic mock HTTP client for offline testing.
-
-    Returns pre-configured responses keyed by claim text.
-    Tracks call count.
-    """
-
-    def __init__(self, responses: dict[str, dict[str, Any]]):
-        self.responses = responses
-        self.call_count = 0
-        self.last_request: dict[str, Any] | None = None
-
-    def post_json(
-        self,
-        url: str,
-        headers: dict[str, str],
-        body: dict[str, Any],
-        timeout: int,
-    ) -> dict[str, Any]:
-        self.call_count += 1
-        self.last_request = {"url": url, "headers": headers, "body": body}
-
-        # Validate request structure
-        assert url == claimcheck.OPENROUTER_URL, f"Wrong URL: {url}"
-        assert body.get("model") == claimcheck.FIXED_MODEL, f"Wrong model: {body.get('model')}"
-        assert "Authorization" in headers, "Missing Authorization header"
-
-        # Extract claim from messages
-        messages = body.get("messages", [])
-        user_msg = ""
-        for m in messages:
-            if m.get("role") == "user":
-                user_msg = m.get("content", "")
-                break
-
-        # Find matching response
-        for claim_key, response in self.responses.items():
-            if claim_key in user_msg:
-                return response
-
-        # Default: return UNVERIFIABLE for unknown claims
-        return _make_mock_response("UNVERIFIABLE", "No matching mock found.", "Provide evidence.", [])
+class EvalFixtureError(ValueError):
+    """Candidate fixtures failed their local contract."""
 
 
-def _make_mock_response(
-    verdict: str,
-    rationale: str,
-    what_would_settle_it: str,
-    evidence_ids: list[str],
-) -> dict[str, Any]:
-    """Build a mock provider response matching the OpenRouter schema."""
-    card = {
-        "verdict": verdict,
-        "rationale": rationale,
-        "what_would_settle_it": what_would_settle_it,
-        "evidence_ids": evidence_ids,
-    }
-    return {
-        "model": claimcheck.FIXED_MODEL,
-        "choices": [
-            {
-                "message": {
-                    "content": json.dumps(card),
-                    "role": "assistant",
-                }
-            }
-        ],
-    }
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise EvalFixtureError("Duplicate fixture JSON key.")
+        result[key] = value
+    return result
 
 
-# ── Mock responses for each case ────────────────────────────────────
-MOCK_RESPONSES: dict[str, dict[str, Any]] = {
-    "Earth is the third planet from the Sun": _make_mock_response(
-        "TRUE",
-        "NASA's Earth Fact Sheet confirms Earth is the third planet from the Sun at a mean distance of 149.6 million km.",
-        "Consult NASA planetary fact sheets or IAU records.",
-        ["source-01"],
-    ),
-    "Pluto is classified as a full planet": _make_mock_response(
-        "FALSE",
-        "The IAU Resolution 5A (2006) reclassified Pluto as a 'dwarf planet', not a full planet.",
-        "See IAU 2006 General Assembly Resolution 5A.",
-        ["source-02"],
-    ),
-    "Neil Armstrong was the first person to walk on the Moon": _make_mock_response(
-        "TRUE",
-        "The Smithsonian Apollo 11 overview confirms Armstrong and Aldrin landed on the Moon on July 20, 1969.",
-        "Consult NASA Apollo mission archives or Smithsonian records.",
-        ["source-03"],
-    ),
-    "Great Wall of China is easily visible from space": _make_mock_response(
-        "FALSE",
-        "Encyclopaedia Britannica and astronaut reports confirm the Great Wall is not easily visible from space with the naked eye.",
-        "Consult astronaut testimonies or space agency reports on Earth observation.",
-        ["source-04"],
-    ),
-    "Everyone in the world has access to clean drinking water": _make_mock_response(
-        "FALSE",
-        "WHO reports that 2.2 billion people still lacked safely managed drinking water services in 2022.",
-        "See WHO/UNICEF Joint Monitoring Programme data.",
-        ["source-05"],
-    ),
-    "The ocean contains most of Earth's water": _make_mock_response(
-        "MISLEADING",
-        "While technically accurate (the ocean holds about 97.5% of Earth's water per NOAA), saying 'most' without noting it is saltwater omits material context about accessible freshwater.",
-        "Consult NOAA or USGS water distribution data with freshwater breakdown.",
-        ["source-06"],
-    ),
-    "Bananas cure cancer": _make_mock_response(
-        "UNVERIFIABLE",
-        "No evidence was supplied to evaluate this medical claim. Model knowledge alone cannot verify medical claims.",
-        "Peer-reviewed clinical studies from recognized medical journals.",
-        [],
-    ),
-    "deep-sea fish was discovered in the Mariana Trench in 2025": _make_mock_response(
-        "UNVERIFIABLE",
-        "No evidence was supplied to evaluate this claim about a specific recent event.",
-        "Published research or news reports with verifiable dates and institutional sources.",
-        [],
-    ),
-}
+def _reject_constant(value: str) -> None:
+    raise EvalFixtureError("Nonstandard fixture JSON constant.")
 
 
-# ── Error mock responses ────────────────────────────────────────────
-class MockHttpError(MockHttpClient):
-    """Mock that raises a provider HTTP error."""
-
-    def __init__(self, status_code: int):
-        super().__init__({})
-        self.status_code = status_code
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        raise claimcheck.ProviderHTTPError(self.status_code, "mock error")
-
-
-class MockHttpTimeout(MockHttpClient):
-    """Mock that raises a timeout error."""
-
-    def __init__(self):
-        super().__init__({})
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        raise claimcheck.ProviderTimeoutError()
+def _read_fixture(path: Path) -> dict[str, Any]:
+    try:
+        with open(path, "rb") as stream:
+            raw = stream.read(MAX_FIXTURE_BYTES + 1)
+        if len(raw) > MAX_FIXTURE_BYTES:
+            raise EvalFixtureError("Fixture exceeds its size limit.")
+        data = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
+                          parse_constant=_reject_constant)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise EvalFixtureError("Cannot read evaluation fixture.") from exc
+    if not isinstance(data, dict) or data.get("schema") != "claim-evidence/v1":
+        raise EvalFixtureError("Invalid evaluation fixture schema.")
+    return data
 
 
-class MockHttpUnreachable(MockHttpClient):
-    """Mock that raises an unreachable error."""
-
-    def __init__(self):
-        super().__init__({})
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        raise claimcheck.ProviderUnreachableError("mock DNS failure")
+def _fixture_id(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value) is not None
 
 
-class MockHttpMalformed(MockHttpClient):
-    """Mock that returns malformed JSON content."""
-
-    def __init__(self):
-        super().__init__({})
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        return {
-            "model": claimcheck.FIXED_MODEL,
-            "choices": [{"message": {"content": "not json at all {{{", "role": "assistant"}}],
-        }
-
-
-class MockHttpWrongModel(MockHttpClient):
-    """Mock that returns a different model tag."""
-
-    def __init__(self):
-        super().__init__({})
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        return {
-            "model": "openai/gpt-4",
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps({
-                            "verdict": "TRUE",
-                            "rationale": "test",
-                            "what_would_settle_it": "test",
-                            "evidence_ids": [],
-                        }),
-                        "role": "assistant",
-                    }
-                }
-            ],
-        }
-
-
-class MockHttpBadSchema(MockHttpClient):
-    """Mock that returns valid JSON but missing required fields."""
-
-    def __init__(self):
-        super().__init__({})
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        return {
-            "model": claimcheck.FIXED_MODEL,
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps({"verdict": "TRUE"}),
-                        "role": "assistant",
-                    }
-                }
-            ],
-        }
-
-
-class MockHttpFabricatedSource(MockHttpClient):
-    """Mock that returns a verdict citing a non-existent evidence ID."""
-
-    def __init__(self):
-        super().__init__({})
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        return {
-            "model": claimcheck.FIXED_MODEL,
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps({
-                            "verdict": "TRUE",
-                            "rationale": "confirmed",
-                            "what_would_settle_it": "nothing",
-                            "evidence_ids": ["source-99-does-not-exist"],
-                        }),
-                        "role": "assistant",
-                    }
-                }
-            ],
-        }
-
-
-class MockHttpConfidentNoEvidence(MockHttpClient):
-    """Mock that returns TRUE without any evidence having been supplied."""
-
-    def __init__(self):
-        super().__init__({})
-
-    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any], timeout: int) -> dict[str, Any]:
-        self.call_count += 1
-        return {
-            "model": claimcheck.FIXED_MODEL,
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps({
-                            "verdict": "TRUE",
-                            "rationale": "I know this from training data.",
-                            "what_would_settle_it": "nothing needed",
-                            "evidence_ids": [],
-                        }),
-                        "role": "assistant",
-                    }
-                }
-            ],
-        }
-
-
-# ── Test functions ───────────────────────────────────────────────────
 def load_cases() -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
-    """Load claims and evidence from the evals fixtures."""
-    with open(CLAIMS_FILE, encoding="utf-8") as f:
-        claims_data = json.load(f)
-    with open(EVIDENCE_FILE, encoding="utf-8") as f:
-        evidence_data = json.load(f)
-
-    cases = claims_data["cases"]
-    evidence_by_id = {e["id"]: e for e in evidence_data["evidence"]}
+    """Validate intended categories; current unreviewed outcomes must abstain."""
+    claims_data = _read_fixture(CLAIMS_FILE)
+    evidence_data = _read_fixture(EVIDENCE_FILE)
+    try:
+        evidence = claimcheck.validate_evidence(evidence_data.get("evidence"))
+    except claimcheck.ClaimCheckError as exc:
+        raise EvalFixtureError("Invalid candidate evidence.") from exc
+    if any(not _fixture_id(item["id"]) for item in evidence):
+        raise EvalFixtureError("Invalid candidate evidence identifier.")
+    evidence_by_id = {item["id"]: item for item in evidence}
+    cases = claims_data.get("cases")
+    if not isinstance(cases, list) or len(cases) != MAX_LIVE_CASES:
+        raise EvalFixtureError("Exactly eight candidate cases are required.")
+    seen_ids: set[str] = set()
+    seen_claims: set[str] = set()
+    categories: set[str] = set()
+    required = {"id", "text", "evidence_ids", "expected_verdict", "allow_abstain",
+                "provenance_reviewed", "allowed_outcomes", "rationale_for_expected"}
+    for case in cases:
+        if not isinstance(case, dict) or set(case) != required:
+            raise EvalFixtureError("Invalid candidate case fields.")
+        case_id = case["id"]
+        if not _fixture_id(case_id) or case_id in seen_ids:
+            raise EvalFixtureError("Invalid or duplicate candidate identifier.")
+        seen_ids.add(case_id)
+        try:
+            claim = claimcheck.validate_claim(case["text"])
+        except claimcheck.ClaimCheckError as exc:
+            raise EvalFixtureError("Invalid candidate claim.") from exc
+        if claim != case["text"] or claim in seen_claims:
+            raise EvalFixtureError("Candidate claims must be distinct and trimmed.")
+        seen_claims.add(claim)
+        intended = case["expected_verdict"]
+        if not isinstance(intended, str) or intended not in claimcheck.VALID_VERDICTS:
+            raise EvalFixtureError("Invalid intended verdict category.")
+        categories.add(intended)
+        ids = case["evidence_ids"]
+        if not isinstance(ids, list) or any(not _fixture_id(eid) for eid in ids):
+            raise EvalFixtureError("Invalid candidate evidence references.")
+        if len(set(ids)) != len(ids) or not set(ids) <= evidence_by_id.keys():
+            raise EvalFixtureError("Duplicate or missing candidate evidence reference.")
+        if type(case["provenance_reviewed"]) is not bool or case["provenance_reviewed"]:
+            raise EvalFixtureError("Bundled candidates must remain explicitly unreviewed.")
+        if case["allow_abstain"] is not True or case["allowed_outcomes"] != ["UNVERIFIABLE"]:
+            raise EvalFixtureError("Unreviewed candidates must require abstention.")
+        rationale = case["rationale_for_expected"]
+        if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > 2000:
+            raise EvalFixtureError("Missing or unbounded candidate rationale.")
+    if categories != set(claimcheck.VALID_VERDICTS):
+        raise EvalFixtureError("Candidates must cover all four intended categories.")
     return cases, evidence_by_id
 
 
+def _make_mock_response(verdict: str,
+                        rationale: str = "Synthetic response for software contract testing only.",
+                        what_would_settle_it: str = "Independent owner review of relevant evidence.",
+                        evidence_ids: list[str] | None = None) -> dict[str, Any]:
+    card = {"verdict": verdict, "rationale": rationale,
+            "what_would_settle_it": what_would_settle_it,
+            "evidence_ids": evidence_ids if evidence_ids is not None else []}
+    return {"model": claimcheck.FIXED_MODEL, "choices": [
+        {"finish_reason": "stop", "message": {
+            "role": "assistant", "content": json.dumps(card)}}]}
+
+
+class MockHttpClient:
+    """Explicit synthetic response; no substring matching or fallback verdict."""
+
+    def __init__(self, response: dict[str, Any] | None = None, error: Exception | None = None):
+        self.response = response
+        self.error = error
+        self.call_count = 0
+        self.last_request: dict[str, Any] | None = None
+
+    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any],
+                  timeout: int) -> dict[str, Any]:
+        self.call_count += 1
+        self.last_request = {"url": url, "headers": headers, "body": body, "timeout": timeout}
+        assert url == claimcheck.OPENROUTER_URL
+        assert body.get("model") == claimcheck.FIXED_MODEL
+        assert headers.get("Authorization") == f"Bearer {MOCK_KEY}"
+        assert timeout == 30
+        if self.error is not None:
+            raise self.error
+        if self.response is None:
+            raise AssertionError("No synthetic response configured.")
+        return copy.deepcopy(self.response)
+
+
+class CountingHttpClient:
+    """Hard cap on actual request attempts, including provider failures."""
+
+    def __init__(self, client: Any, limit: int):
+        self.client = client
+        self.limit = min(limit, MAX_LIVE_CASES)
+        self.call_count = 0
+
+    def post_json(self, url: str, headers: dict[str, str], body: dict[str, Any],
+                  timeout: int) -> dict[str, Any]:
+        if self.call_count >= self.limit:
+            raise claimcheck.ConfigurationError("Live request limit reached.")
+        self.call_count += 1
+        return self.client.post_json(url, headers, body, timeout)
+
+
 def run_mock_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
-    """Run all mock tests. Returns (passed, total, failure_messages)."""
     cases, evidence_by_id = load_cases()
-    mock_client = MockHttpClient(MOCK_RESPONSES)
-
-    passed = 0
-    total = 0
+    passed, calls = 0, 0
     failures: list[str] = []
-
-    # Set a fake API key for mock tests
-    original_key = os.environ.get("OPENROUTER_API_KEY")
-    os.environ["OPENROUTER_API_KEY"] = "mock-test-key-not-real"
-
-    try:
-        print("=" * 60)
-        print("MOCK EVALUATION (offline, deterministic)")
-        print("=" * 60)
-
+    print("OFFLINE MOCKS — software behavior only; no factual or live verification")
+    with patch.dict(os.environ, {"OPENROUTER_API_KEY": MOCK_KEY}):
         for case in cases:
-            total += 1
-            case_id = case["id"]
-            claim_text = case["text"]
-            expected = case["expected_verdict"]
-            allow_abstain = case.get("allow_abstain", False)
-            case_evidence_ids = case.get("evidence_ids", [])
-
-            # Gather evidence for this case
-            evidence = [evidence_by_id[eid] for eid in case_evidence_ids if eid in evidence_by_id]
-
+            client = MockHttpClient(_make_mock_response("UNVERIFIABLE"))
+            evidence = [evidence_by_id[eid] for eid in case["evidence_ids"]]
+            actual = "REQUEST FAILED"
             try:
-                card = claimcheck.check_claim(
-                    claim_text,
-                    evidence=evidence if evidence else None,
-                    client=mock_client,
-                )
-                actual_verdict = card["verdict"]
-
-                # Check result
-                match = actual_verdict == expected
-                abstained = actual_verdict == "UNVERIFIABLE" and allow_abstain
-
-                if match or abstained:
-                    passed += 1
-                    status = "PASS"
-                    if abstained and not match:
-                        status = "PASS (abstained)"
-                else:
-                    status = "FAIL"
-                    failures.append(
-                        f"{case_id}: expected={expected}, got={actual_verdict}"
-                    )
-
-                if verbose:
-                    print(f"\n  [{case_id}] {claim_text[:60]}...")
-                    print(f"    Expected: {expected} | Got: {actual_verdict} | {status}")
-                    print(f"    Rationale: {card['rationale'][:80]}...")
-                else:
-                    print(f"  [{case_id}] {status}: expected={expected}, got={actual_verdict}")
-
-            except Exception as exc:
-                failures.append(f"{case_id}: exception — {exc}")
-                print(f"  [{case_id}] ERROR: {exc}")
-                total += 0  # already counted
-
-        print(f"\nMock verdict cases: {passed}/{total} passed")
-        print(f"Mock HTTP calls: {mock_client.call_count}")
-
-        # Additional validation tests
-        print("\n" + "-" * 60)
-        print("MOCK VALIDATION TESTS (error handling)")
-        print("-" * 60)
-        validation_passed, validation_total, validation_failures = run_validation_tests(verbose)
-        passed += validation_passed
-        total += validation_total
-        failures.extend(validation_failures)
-
-    finally:
-        # Restore original key
-        if original_key is not None:
-            os.environ["OPENROUTER_API_KEY"] = original_key
-        else:
-            del os.environ["OPENROUTER_API_KEY"]
-
-    return passed, total, failures
+                card = claimcheck.check_claim(case["text"], evidence=evidence, client=client)
+                actual = card["verdict"]
+                if actual not in case["allowed_outcomes"] or client.call_count != 1:
+                    raise AssertionError("Candidate abstention or one-call contract failed.")
+                passed += 1
+                status = "PASS (abstention policy)"
+            except Exception:
+                failures.append(f"{case['id']}: candidate abstention check failed")
+                status = "FAIL"
+            calls += client.call_count
+            print(f"  [{case['id']}] review=PENDING; intended={case['expected_verdict']}; "
+                  f"allowed=UNVERIFIABLE; actual={actual}; {status}")
+            if verbose:
+                print(f"    Candidate IDs: {case['evidence_ids']}; mock attempts={client.call_count}")
+        print(f"Unreviewed candidate safety checks: {passed}/{len(cases)}")
+        print(f"Candidate mock request attempts: {calls}; real requests: 0")
+        print("Reviewed factual coverage: BLOCKED — no independent owner review receipts.")
+        vp, vt, vf = run_validation_tests(verbose)
+    failures.extend(vf)
+    return passed + vp, len(cases) + vt, failures
 
 
 def run_validation_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
-    """Run error-handling and validation mock tests."""
-    passed = 0
-    total = 0
+    """Invented reviewed receipts below are synthetic, never human review."""
+    passed, total, calls = 0, 0, 0
     failures: list[str] = []
+    claim = "Synthetic test sample has the approved property."
+    evidence = [{"id": "synthetic-source", "publisher": "Synthetic test publisher",
+                 "title": "Invented software fixture", "url": "https://example.invalid/fixture",
+                 "date": "2026-10-23", "excerpt": claim, "verified_by_human": False}]
+    receipt = {"schema": "claim-review/v1", "claim": claim, "verdict": "TRUE",
+               "evidence_ids": ["synthetic-source"],
+               "evidence_sha256": claimcheck.evidence_digest(evidence),
+               "reviewed_by": "SYNTHETIC TEST ONLY — no actual reviewer", "reviewed_on": "2026-10-23"}
 
-    os.environ["OPENROUTER_API_KEY"] = "mock-test-key-not-real"
-
-    test_claim = "Test claim for validation."
-
-    validation_cases: list[tuple[str, type, Any]] = [
-        ("HTTP 401 (unauthorized)", claimcheck.ProviderHTTPError, MockHttpError(401)),
-        ("HTTP 402 (payment required)", claimcheck.ProviderHTTPError, MockHttpError(402)),
-        ("HTTP 429 (rate limited)", claimcheck.ProviderHTTPError, MockHttpError(429)),
-        ("HTTP 500 (server error)", claimcheck.ProviderHTTPError, MockHttpError(500)),
-        ("Timeout", claimcheck.ProviderTimeoutError, MockHttpTimeout()),
-        ("Unreachable", claimcheck.ProviderUnreachableError, MockHttpUnreachable()),
-        ("Malformed JSON", claimcheck.MalformedResponseError, MockHttpMalformed()),
-        ("Wrong model", claimcheck.ModelMismatchError, MockHttpWrongModel()),
-        ("Missing fields", claimcheck.ResponseValidationError, MockHttpBadSchema()),
-        ("Fabricated source ID", claimcheck.ResponseValidationError, MockHttpFabricatedSource()),
-        ("Confident verdict without evidence", claimcheck.ResponseValidationError, MockHttpConfidentNoEvidence()),
-    ]
-
-    for name, expected_exc, mock_client in validation_cases:
+    def test(name: str, response: dict[str, Any] | None = None,
+             error: Exception | None = None, expected_error: type | None = None,
+             supplied: Any = None, review: Any = None, text: Any = claim,
+             expected_calls: int = 1, expected_verdict: str = "UNVERIFIABLE") -> None:
+        nonlocal passed, total, calls
         total += 1
+        client = MockHttpClient(response, error)
+        caught = None
+        actual = None
         try:
-            claimcheck.check_claim(test_claim, evidence=None, client=mock_client)
-            # Should have raised
-            failures.append(f"validation/{name}: expected {expected_exc.__name__} but no exception")
-            print(f"  [validation/{name}] FAIL: no exception raised")
-        except expected_exc:
-            passed += 1
-            print(f"  [validation/{name}] PASS")
+            actual = claimcheck.check_claim(text, evidence=supplied, client=client, review=review)["verdict"]
         except Exception as exc:
-            failures.append(f"validation/{name}: expected {expected_exc.__name__}, got {type(exc).__name__}: {exc}")
-            print(f"  [validation/{name}] FAIL: {type(exc).__name__}: {exc}")
-
-    # Input validation tests
-    input_cases: list[tuple[str, str | None]] = [
-        ("blank claim", "   "),
-        ("too-long claim", "x" * 2001),
-        ("None claim", None),
-    ]
-
-    for name, claim_input in input_cases:
-        total += 1
-        try:
-            claimcheck.validate_claim(claim_input)
-            failures.append(f"input/{name}: expected InputValidationError but none raised")
-            print(f"  [input/{name}] FAIL: no exception raised")
-        except claimcheck.InputValidationError:
+            caught = type(exc)
+        calls += client.call_count
+        correct_error = (caught is None and actual == expected_verdict) if expected_error is None else (
+            caught is not None and issubclass(caught, expected_error))
+        if correct_error and client.call_count == expected_calls:
             passed += 1
-            print(f"  [input/{name}] PASS")
-        except Exception as exc:
-            failures.append(f"input/{name}: unexpected {type(exc).__name__}: {exc}")
-            print(f"  [input/{name}] FAIL: {type(exc).__name__}")
+            print(f"  [synthetic/{name}] PASS")
+        else:
+            failures.append(f"synthetic/{name}: exception or request-count mismatch")
+            print(f"  [synthetic/{name}] FAIL")
 
-    # Missing API key test
-    total += 1
-    original_key = os.environ.pop("OPENROUTER_API_KEY", None)
-    try:
-        claimcheck.check_claim("test", client=MockHttpClient({}))
-        failures.append("config/no-api-key: expected ConfigurationError")
-        print("  [config/no-api-key] FAIL: no exception raised")
-    except claimcheck.ConfigurationError:
-        passed += 1
-        print("  [config/no-api-key] PASS")
-    except Exception as exc:
-        failures.append(f"config/no-api-key: unexpected {type(exc).__name__}")
-        print(f"  [config/no-api-key] FAIL: {type(exc).__name__}")
-    finally:
-        if original_key is not None:
-            os.environ["OPENROUTER_API_KEY"] = original_key
-
-    print(f"\nValidation tests: {passed}/{total} passed")
+    print("SYNTHETIC CONTRACT TESTS — invented receipts, no human source review")
+    with patch.dict(os.environ, {"OPENROUTER_API_KEY": MOCK_KEY}):
+        for status in (401, 402, 429, 500):
+            test(f"HTTP {status}", error=claimcheck.ProviderHTTPError(status, "synthetic"),
+                 expected_error=claimcheck.ProviderHTTPError)
+        test("timeout", error=claimcheck.ProviderTimeoutError("synthetic"),
+             expected_error=claimcheck.ProviderTimeoutError)
+        test("unreachable", error=claimcheck.ProviderUnreachableError("synthetic"),
+             expected_error=claimcheck.ProviderUnreachableError)
+        bad = _make_mock_response("UNVERIFIABLE")
+        bad["choices"][0]["message"]["content"] = "{"
+        test("malformed JSON", response=bad, expected_error=claimcheck.MalformedResponseError)
+        for name, metadata in (("wrong model", "other/model:free"),
+                               ("base-only model", claimcheck.FIXED_MODEL.removesuffix(":free")),
+                               ("missing model", None)):
+            bad = _make_mock_response("UNVERIFIABLE")
+            if metadata is None:
+                del bad["model"]
+            else:
+                bad["model"] = metadata
+            test(name, response=bad, expected_error=claimcheck.ModelMismatchError)
+        bad = _make_mock_response("UNVERIFIABLE")
+        bad["choices"][0]["finish_reason"] = "length"
+        test("truncated response", response=bad, expected_error=claimcheck.ClaimCheckError)
+        test("unknown citation", response=_make_mock_response("UNVERIFIABLE", evidence_ids=["unknown"]),
+             expected_error=claimcheck.ResponseValidationError)
+        test("confident without evidence", response=_make_mock_response("TRUE"),
+             expected_error=claimcheck.ResponseValidationError)
+        test("confident unreviewed source", response=_make_mock_response("TRUE", evidence_ids=["synthetic-source"]),
+             supplied=evidence, expected_error=claimcheck.ResponseValidationError)
+        for verdict in ("TRUE", "FALSE", "MISLEADING"):
+            test(f"reviewed {verdict}", response=_make_mock_response(verdict, evidence_ids=["synthetic-source"]),
+                 supplied=evidence, review=dict(receipt, verdict=verdict), expected_verdict=verdict)
+        test("reviewed source may abstain", response=_make_mock_response("UNVERIFIABLE"),
+             supplied=evidence, review=receipt)
+        test("opposite review verdict", response=_make_mock_response("FALSE", evidence_ids=["synthetic-source"]),
+             supplied=evidence, review=receipt, expected_error=claimcheck.ResponseValidationError)
+        test("stale receipt", response=_make_mock_response("UNVERIFIABLE"), supplied=evidence,
+             review=dict(receipt, evidence_sha256="0" * 64),
+             expected_error=claimcheck.InputValidationError, expected_calls=0)
+        test("invalid evidence", response=_make_mock_response("UNVERIFIABLE"), supplied=[{"id": "missing-metadata"}],
+             expected_error=claimcheck.InputValidationError, expected_calls=0)
+        for name, text in (("blank claim", "  "), ("long claim", "x" * 2001), ("null claim", None)):
+            test(name, response=_make_mock_response("UNVERIFIABLE"), text=text,
+                 expected_error=claimcheck.InputValidationError, expected_calls=0)
+        with patch.dict(os.environ, {}, clear=True):
+            test("missing key", response=_make_mock_response("UNVERIFIABLE"),
+                 expected_error=claimcheck.ConfigurationError, expected_calls=0)
+    print(f"Synthetic contract checks: {passed}/{total}")
+    print(f"Synthetic mock request attempts: {calls}; real requests: 0")
     return passed, total, failures
 
 
-def run_live_tests(verbose: bool = False) -> tuple[int, int, list[str]]:
-    """Run live tests against the real Gemma endpoint.
+def load_case_reviews(
+    cases: list[dict[str, Any]], evidence_by_id: dict[str, dict[str, Any]],
+    review_dir: str | Path | None,
+) -> dict[str, dict[str, Any]]:
+    """Prevalidate every supplied receipt before the first live attempt."""
+    if review_dir is None:
+        return {}
+    directory = Path(review_dir)
+    try:
+        if not directory.is_dir():
+            raise EvalFixtureError("Review directory is unavailable.")
+        files = [path for path in directory.iterdir() if path.suffix == ".json"]
+    except OSError as exc:
+        raise EvalFixtureError("Review directory is unavailable.") from exc
+    by_filename = {f"{case['id']}.json": case for case in cases}
+    if len(files) > len(cases) or any(path.name not in by_filename for path in files):
+        raise EvalFixtureError("Unknown or excessive review receipts.")
+    reviews = {}
+    for path in files:
+        case = by_filename[path.name]
+        evidence = [evidence_by_id[eid] for eid in case["evidence_ids"]]
+        try:
+            receipt = claimcheck.load_review_file(str(path))
+            # Share core binding validation; check_claim repeats it at use time.
+            verdict, _ = claimcheck._validate_review(receipt, case["text"], evidence)
+        except claimcheck.ClaimCheckError as exc:
+            raise EvalFixtureError("Review receipt failed validation.") from exc
+        if verdict != case["expected_verdict"]:
+            raise EvalFixtureError("Review verdict differs from the intended case category.")
+        reviews[case["id"]] = receipt
+    return reviews
 
-    Requires OPENROUTER_API_KEY to be set.
-    Hard-capped at MAX_LIVE_CASES.
-    """
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not api_key:
-        print("BLOCKED: OPENROUTER_API_KEY not set. Cannot run live tests.")
-        return 0, 0, ["BLOCKED: no API key"]
 
-    if api_key == "mock-test-key-not-real":
-        print("BLOCKED: Detected mock key. Set a real OPENROUTER_API_KEY for live tests.")
-        return 0, 0, ["BLOCKED: mock key detected"]
-
+def run_live_tests(verbose: bool = False, confirm_free_allowance: bool = False,
+                   client: Any = None, review_dir: str | Path | None = None) -> tuple[int, int, list[str]]:
+    """Opt-in requests require separately confirmed available zero-cost allowance."""
+    if not confirm_free_allowance:
+        print("BLOCKED: live evaluation requires --confirm-free-allowance.")
+        return 0, 0, ["BLOCKED: free allowance not confirmed"]
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not key or key == MOCK_KEY:
+        print("BLOCKED: live evaluation requires a locally configured real API key.")
+        return 0, 0, ["BLOCKED: live key unavailable"]
     cases, evidence_by_id = load_cases()
-    if len(cases) > MAX_LIVE_CASES:
-        print(f"WARNING: {len(cases)} cases but live cap is {MAX_LIVE_CASES}. Running first {MAX_LIVE_CASES}.")
-        cases = cases[:MAX_LIVE_CASES]
-
-    passed = 0
-    total = 0
+    try:
+        reviews = load_case_reviews(cases, evidence_by_id, review_dir)
+    except EvalFixtureError:
+        print("BLOCKED: invalid review receipts; no live requests attempted.")
+        return 0, 0, ["BLOCKED: invalid review receipts"]
+    counted = CountingHttpClient(client if client is not None else claimcheck.RealHttpClient(),
+                                 min(len(cases), MAX_LIVE_CASES))
+    passed, total = 0, 0
     failures: list[str] = []
-    call_count = 0
-
-    print("=" * 60)
-    print(f"LIVE EVALUATION (real Gemma endpoint, max {MAX_LIVE_CASES} cases)")
-    print(f"Model: {claimcheck.FIXED_MODEL}")
-    print(f"Endpoint: {claimcheck.OPENROUTER_URL}")
-    print("=" * 60)
-
+    observed = {verdict: 0 for verdict in sorted(claimcheck.VALID_VERDICTS)}
+    categories = sorted({receipt["verdict"] for receipt in reviews.values()})
+    print(f"LIVE CANDIDATE EVALUATION — request cap {counted.limit}")
+    print(f"Configured model: {claimcheck.FIXED_MODEL}")
+    print(f"Receipt-reviewed candidates: {len(reviews)}/{len(cases)}; approved categories: {categories}")
+    print("Missing receipts leave candidates PENDING; only UNVERIFIABLE is then allowed.")
+    print("Abstention results do not verify TRUE/FALSE/MISLEADING factual coverage.")
     for case in cases:
         total += 1
-        call_count += 1
-        case_id = case["id"]
-        claim_text = case["text"]
-        expected = case["expected_verdict"]
-        allow_abstain = case.get("allow_abstain", False)
-        case_evidence_ids = case.get("evidence_ids", [])
-
-        evidence = [evidence_by_id[eid] for eid in case_evidence_ids if eid in evidence_by_id]
-
-        print(f"\n  [{case_id}] Sending: {claim_text[:60]}...")
-
+        evidence = [evidence_by_id[eid] for eid in case["evidence_ids"]]
+        review = reviews.get(case["id"])
+        allowed = {"UNVERIFIABLE"}
+        if review is not None:
+            allowed.add(review["verdict"])
+        review_status = "OWNER RECEIPT" if review is not None else "PENDING"
         try:
-            start = time.time()
-            card = claimcheck.check_claim(
-                claim_text,
-                evidence=evidence if evidence else None,
-                client=None,  # Use real client
-            )
-            elapsed = time.time() - start
-            actual_verdict = card["verdict"]
-
-            match = actual_verdict == expected
-            abstained = actual_verdict == "UNVERIFIABLE" and allow_abstain
-
-            if match or abstained:
+            card = claimcheck.check_claim(case["text"], evidence=evidence, client=counted, review=review)
+            actual = card["verdict"]
+            if actual in allowed:
                 passed += 1
-                status = "PASS"
-                if abstained and not match:
-                    status = "PASS (honest abstention)"
+                status = "PASS (allowed outcome)"
             else:
+                failures.append(f"{case['id']}: disallowed candidate outcome")
                 status = "FAIL"
-                failures.append(
-                    f"{case_id}: expected={expected}, got={actual_verdict}"
-                )
-
-            print(f"    Expected: {expected} | Got: {actual_verdict} | {status}")
-            print(f"    Time: {elapsed:.1f}s")
+            observed[actual] += 1
+            print(f"  [{case['id']}] review={review_status}; intended={case['expected_verdict']}; "
+                  f"allowed={','.join(sorted(allowed))}; actual={actual}; {status}")
             if verbose:
-                print(f"    Rationale: {card['rationale'][:100]}...")
-                print(f"    Evidence cited: {card['evidence_ids']}")
-
-        except claimcheck.ProviderHTTPError as exc:
-            failures.append(f"{case_id}: HTTP {exc.status_code}")
-            print(f"    REQUEST FAILED: HTTP {exc.status_code}")
-            if exc.status_code == 429:
-                print("    Rate limited — stopping live tests.")
-                break
-            if exc.status_code == 402:
-                print("    Payment required — stopping live tests.")
-                break
-        except claimcheck.ClaimCheckError as exc:
-            failures.append(f"{case_id}: {type(exc).__name__}: {exc}")
-            print(f"    REQUEST FAILED: {type(exc).__name__}: {exc}")
-        except Exception as exc:
-            failures.append(f"{case_id}: unexpected {type(exc).__name__}: {exc}")
-            print(f"    ERROR: {type(exc).__name__}: {exc}")
-
-    print(f"\nLive verdict cases: {passed}/{total} passed")
-    print(f"Live API calls made: {call_count}")
-    print(f"Model: {claimcheck.FIXED_MODEL}")
+                print(f"    Observed model: {card['model']}; cited IDs: {card['evidence_ids']}")
+        except Exception:
+            failures.append(f"{case['id']}: REQUEST FAILED")
+            print(f"  [{case['id']}] REQUEST FAILED; stopping live run without retry.")
+            break
+    print(f"Live candidate checks: {passed}/{total}; declared cases: {len(cases)}")
+    print(f"Observed verdict counts: {observed}")
+    print(f"Live request attempts: {counted.call_count}; cap: {counted.limit}")
     return passed, total, failures
 
 
-# ── Main ─────────────────────────────────────────────────────────────
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Run claim-checker-local evaluation suite.",
-    )
-    parser.add_argument(
-        "--live",
-        action="store_true",
-        help="Run live tests against real Gemma endpoint (requires OPENROUTER_API_KEY).",
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Show detailed output per case.",
-    )
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--live", action="store_true", help="Opt in to hosted Gemma candidate checks.")
+    parser.add_argument("--confirm-free-allowance", action="store_true",
+                        help="Confirm available allowance for the zero-cost route before --live.")
+    parser.add_argument("--review-dir", type=Path,
+                        help="Optional directory of independently supplied case-ID.json receipts.")
+    parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
-
-    total_passed = 0
-    total_cases = 0
-    all_failures: list[str] = []
-
-    # Always run mock tests first
-    mock_passed, mock_total, mock_failures = run_mock_tests(args.verbose)
-    total_passed += mock_passed
-    total_cases += mock_total
-    all_failures.extend(mock_failures)
-
-    if args.live:
-        print("\n")
-        live_passed, live_total, live_failures = run_live_tests(args.verbose)
-        total_passed += live_passed
-        total_cases += live_total
-        all_failures.extend(live_failures)
-    else:
-        print("\n(Live tests skipped. Use --live to test against real Gemma endpoint.)")
-
-    # Summary
-    print("\n" + "=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
-    print(f"Total: {total_passed}/{total_cases} passed")
-
-    if all_failures:
-        print("\nFailures:")
-        for f in all_failures:
-            print(f"  ✗ {f}")
+    if (args.confirm_free_allowance or args.review_dir is not None) and not args.live:
+        parser.error("--confirm-free-allowance and --review-dir require --live")
+    try:
+        passed, total, failures = run_mock_tests(args.verbose)
+        print(f"\nOffline software checks: {passed}/{total}; real requests: 0")
+        if failures:
+            print("Offline checks FAILED. Live evaluation not started.")
+            return 1
+        if args.live:
+            _, _, failures = run_live_tests(args.verbose, args.confirm_free_allowance, review_dir=args.review_dir)
+            return 1 if failures else 0
+    except EvalFixtureError:
+        print("REQUEST FAILED: evaluation fixtures are invalid; no live requests started.")
         return 1
-
-    print("\nAll tests passed.")
+    print("Live Gemma execution: NOT RUN. Candidate human review: PENDING.")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

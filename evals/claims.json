@@ -1,60 +1,90 @@
 {
   "schema": "claim-evidence/v1",
-  "description": "Eight golden evaluation cases for claim-checker-local. Cases cover TRUE, FALSE, MISLEADING, and UNVERIFIABLE verdicts. Each case documents its evidence dependencies, expected verdict, and whether honest abstention (UNVERIFIABLE) is acceptable.",
+  "description": "Eight unreviewed candidate claims spanning four intended categories. Intended labels are hypotheses for independent review, not golden factual oracles. Every current effective allowed outcome is UNVERIFIABLE.",
   "cases": [
     {
       "id": "case-01",
       "text": "Earth is the third planet from the Sun.",
-      "evidence_ids": ["source-01"],
+      "evidence_ids": [
+        "source-01"
+      ],
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "NASA Earth Fact Sheet directly states Earth is the third planet from the Sun. Evidence source-01 directly supports this claim."
+      "rationale_for_expected": "Candidate interpretation, pending independent source and entailment review: NASA Earth Fact Sheet directly states Earth is the third planet from the Sun. Evidence source-01 directly supports this claim.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     },
     {
       "id": "case-02",
       "text": "Pluto is classified as a full planet by the International Astronomical Union.",
-      "evidence_ids": ["source-02"],
+      "evidence_ids": [
+        "source-02"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "IAU Resolution 5A (2006) reclassified Pluto as a 'dwarf planet', not a full planet. Evidence source-02 directly contradicts the claim."
+      "rationale_for_expected": "Candidate interpretation, pending independent source and entailment review: IAU Resolution 5A (2006) reclassified Pluto as a 'dwarf planet', not a full planet. Evidence source-02 directly contradicts the claim.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     },
     {
       "id": "case-03",
       "text": "Neil Armstrong was the first person to walk on the Moon in 1969.",
-      "evidence_ids": ["source-03"],
+      "evidence_ids": [
+        "source-03"
+      ],
       "expected_verdict": "TRUE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "Smithsonian Apollo 11 overview confirms Armstrong and Aldrin landed on the Moon on July 20, 1969. Armstrong was first to step out. Source-03 supports the claim."
+      "rationale_for_expected": "Candidate interpretation, pending independent source and entailment review: Smithsonian Apollo 11 overview confirms Armstrong and Aldrin landed on the Moon on July 20, 1969. Armstrong was first to step out. Source-03 supports the claim.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     },
     {
       "id": "case-04",
       "text": "The Great Wall of China is easily visible from space with the naked eye.",
-      "evidence_ids": ["source-04"],
+      "evidence_ids": [
+        "source-04"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "Britannica and astronaut reports confirm the Great Wall is NOT easily visible from space with the unaided eye. Evidence source-04 directly contradicts the claim."
+      "rationale_for_expected": "Candidate interpretation, pending independent source and entailment review: Britannica and astronaut reports confirm the Great Wall is NOT easily visible from space with the unaided eye. Evidence source-04 directly contradicts the claim.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     },
     {
       "id": "case-05",
       "text": "Everyone in the world has access to clean drinking water.",
-      "evidence_ids": ["source-05"],
+      "evidence_ids": [
+        "source-05"
+      ],
       "expected_verdict": "FALSE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "WHO reports 2.2 billion people lacked safely managed drinking water in 2022. Evidence source-05 directly contradicts the universal access claim."
+      "rationale_for_expected": "Candidate interpretation, pending independent source and entailment review: WHO reports 2.2 billion people lacked safely managed drinking water in 2022. Evidence source-05 directly contradicts the universal access claim.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     },
     {
       "id": "case-06",
-      "text": "The ocean contains most of Earth's water.",
-      "evidence_ids": ["source-06"],
+      "text": "The ocean contains most of Earth's water, so almost all of Earth's water is freshwater.",
+      "evidence_ids": [
+        "source-06"
+      ],
       "expected_verdict": "MISLEADING",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "While technically accurate (97.5% per NOAA), saying 'most' without noting it's saltwater omits material context about potable water availability. Source-06 supports the basic fact but the claim could mislead about accessible freshwater. Model may also reasonably say TRUE since the literal statement is supported."
+      "rationale_for_expected": "Candidate MISLEADING interpretation: the claim combines an ocean-volume statement with a material inference about freshwater. Source-06 alone does not establish salinity or drinkability. Independent review and relevant source context are required before any confident label; only UNVERIFIABLE is allowed now.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     },
     {
       "id": "case-07",
@@ -63,7 +93,10 @@
       "expected_verdict": "UNVERIFIABLE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "No evidence supplied. Medical claim requires authoritative reviewed sources. Without evidence, only UNVERIFIABLE is valid per the grounding rule."
+      "rationale_for_expected": "Candidate interpretation, pending independent source and entailment review: No evidence supplied. Medical claim requires authoritative reviewed sources. Without evidence, only UNVERIFIABLE is valid per the grounding rule.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     },
     {
       "id": "case-08",
@@ -72,8 +105,10 @@
       "expected_verdict": "UNVERIFIABLE",
       "allow_abstain": true,
       "provenance_reviewed": false,
-      "rationale_for_expected": "No evidence supplied. Specific factual claim about a recent event requires sourced evidence. Without any supplied evidence, only UNVERIFIABLE is valid."
+      "rationale_for_expected": "Candidate interpretation, pending independent source and entailment review: No evidence supplied. Specific factual claim about a recent event requires sourced evidence. Without any supplied evidence, only UNVERIFIABLE is valid.",
+      "allowed_outcomes": [
+        "UNVERIFIABLE"
+      ]
     }
   ]
 }
-
