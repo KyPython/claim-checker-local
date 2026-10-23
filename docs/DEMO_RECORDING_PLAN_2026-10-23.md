@@ -16,10 +16,10 @@ Screen: Terminal in `~/claim-checker-local` on `audit/release-hardening-2026-10-
 "These are deterministic mocks, not Gemma outputs. Eight fixture contracts and fifteen synthetic error cases passed on my Mac, including rejecting invented evidence IDs and the wrong model."
 
 **0:48–1:02 — Run `python3 -m unittest discover -s evals -p 'test_*.py' -v`. Read:**
-"Fifteen regression checks also passed. The app rejects unreviewed sources rather than inventing a confident fact-check."
+"The regression suite also checks strict model and provider identity, and rejects unreviewed evidence rather than inventing a confident fact-check. Show the actual passing test count on screen; don't claim an unrun test has passed."
 
 **1:02–1:19 — Show the README fixed-model and error-handling sections, not a fabricated verdict. Read:**
-"The intended runtime is Google's open-weight Gemma 4 through OpenRouter's exact free endpoint. My key is authenticated, but the free provider has returned HTTP 429, so live inference is not yet verified."
+"The intended runtime is Google's open-weight Gemma 4, through an explicitly selected free provider. OpenRouter returned HTTP 429, and Google's direct service still needs a real test. I have not yet recorded a successful Gemma verdict."
 
 **1:19–1:29 — Show `docs/DEV_WEEK3_SUBMISSION_DRAFT.md` with unpublished status. Read:**
 "That limit is part of the engineering story. I will not pass off simulated outputs as a real model demonstration or switch to a paid route."
@@ -28,9 +28,9 @@ If recording at normal cadence exceeds 90 seconds, shorten pauses, not disclosur
 
 ## Clip B — official A11 Gemma proof (HOLD until actual success)
 
-**Prerequisites:** Reviewed exact `:free` model route, a dedicated properly restricted key, owner-approved one-call live attempt only after provider restriction clears, and no paid fallback. Never automatically retry.
+**Prerequisites:** A verified free-tier provider route, private key, one owner-approved call, exact returned model identity, and no paid fallback. The Google native route is an allowed alternative to OpenRouter. Never automatically retry.
 
-Record the **actual** `python3 claimcheck.py --claim "Earth is the third planet from the Sun." --json` result and inspect its returned model tag and `UNVERIFIABLE` semantics (no source supplied). Capture OpenRouter Activity with exact model and recorded cost; hide account details.
+Record the **actual** `python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it --claim "Earth is the third planet from the Sun." --json` result, or a different explicitly selected allowed free Gemma route if that is what was truly run. Inspect returned model identity and `UNVERIFIABLE` semantics (no source supplied). Capture the selected provider\'s usage/project tier and recorded cost; hide account details.
 
 Verbatim narration *only if actually observed*:
 "Now this is a real Gemma response from the exact free endpoint. Because I supplied no independently reviewed evidence, the app allows only an UNVERIFIABLE provisional card, not a confident claim of truth. Here is the model identifier and the actual recorded usage cost."
