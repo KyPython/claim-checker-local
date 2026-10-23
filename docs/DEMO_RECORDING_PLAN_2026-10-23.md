@@ -1,74 +1,113 @@
-# Claim Checker — 60–90-second contest demo filming script
+# Claim Checker — reviewed, verbatim contest filming script
 
-**Updated October 23, 2026 after the first genuine Gemma 4 26B inference.**
+**Reviewed October 23, 2026 — recording target: 75–90 seconds.** This is a filming runbook, not evidence that a video was recorded or a DEV entry published.
 
-**Observed proof:** On Mac at tested code `6e0c2d5`, compilation completed, offline mocks **23/23** passed, Python unittests **34/34** passed, and Google-hosted `gemma-4-26b-a4b-it` returned a real validated JSON card: `UNVERIFIABLE` with no evidence. [Exact sanitized receipt](LIVE_GEMMA_RECEIPT_2026-10-23.md). The live functionality gate is cleared; **screen recording is not yet evidenced**. The tests do not certify independent factual accuracy. Never show private keys, accounts, sensitive claims or paid billing details.
+## Verified facts and scope
 
-## Prepare once, before starting screen recording
+At tested **code commit `6e0c2d5`** on the owner's Mac, Python compilation succeeded, the **offline deterministic/validation suite passed 23/23**, and the **unit suite passed 34/34**. One real Google-hosted `gemma-4-26b-a4b-it` call returned a contract-valid JSON card with `verdict=UNVERIFIABLE` and `evidence_ids=[]`. [Actual sanitized receipt](https://github.com/KyPython/claim-checker-local/blob/audit/release-hardening-2026-10-22/docs/LIVE_GEMMA_RECEIPT_2026-10-23.md).
 
-1. Open Terminal in `~/claim-checker-local` with large text, hide notifications and other windows. Check out `audit/release-hardening-2026-10-22`. Pull the current branch if not already current; documentation-only commits after `6e0c2d5` do not change model behavior.
-2. Confirm your **Google AI Studio project is free-tier** and review actual past request usage/cost. Google's published free token price is **not** an account-specific charge receipt.
-3. To film a **fresh call**, privately enter and export the key **before recording**, not during the video:
+**What this proves:** one real Gemma-backed, no-source abstention path plus local software checks. It does **not** prove accurate TRUE/FALSE fact-checking, an eight-case live accuracy score, independent review of the other source fixtures, actual $0 usage, or measured time savings.
+
+**Who wrote what:** The original Python implementation was AI-authored using a coding agent. The user directed the project and ran the Mac tests. Do not imply that the user personally wrote all the code. The [DEV draft](https://github.com/KyPython/claim-checker-local/blob/audit/release-hardening-2026-10-22/docs/DEV_WEEK3_SUBMISSION_DRAFT.md) contains the fuller attribution.
+
+## Before recording (off camera)
+
+1. **Prepare Terminal.** Open a fresh Terminal window, enlarge text, disable notifications and close windows with personal data. Run:
+
+```bash
+cd "$HOME/claim-checker-local"
+git switch audit/release-hardening-2026-10-22
+git pull --ff-only
+python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py evals/test_release_gate.py evals/test_provider_routing.py
+python3 evals/run_eval.py -v
+python3 -m unittest discover -s evals -p 'test_*.py' -v
+```
+
+**Stop if a check fails.** If code changes from the tested version, do not carry forward the earlier 23/34 pass counts without rechecking. Documentation-only changes do not establish a new code test receipt.
+
+2. **Check the account.** Confirm in Google AI Studio that the selected project uses an eligible free tier and inspect usage for the earlier call. Google's advertised free price is not evidence of this particular account's charges. Use only a public, non-sensitive test claim.
+
+3. **Set the key privately, with screen recording OFF.** Do not paste an API key into the video, chat, history, or project files:
 
 ```bash
 read -rs "GEMINI_API_KEY?Google AI Studio key (hidden): "
 echo
 export GEMINI_API_KEY
+clear
 ```
 
-4. Never film a key value, billing info, developer tokens, `env` output, or another person's claim. After the recording, run `unset GEMINI_API_KEY`. The CLI never automatically retries or switches to a paid model.
+4. **Start the recording.** On macOS, press **Shift–Command–5**, choose **Record Selected Portion**, select the Terminal region, use **Options → Microphone** to select your microphone, then **Record**. Keep the screen readable and never reveal a key, account identifier, or private information.
 
-## Main demo — verbatim narration and actual commands (target 75–90 seconds)
+5. **Keep two proof types distinct:** a live model result and an offline test summary. The video may pause for provider latency; the approximate timestamps are editing targets, not promises about API speed.
 
-**0:00–0:13 — Title & purpose. Show repository name and terminal. Read:**
+## Say this aloud — one main take
 
-> "I built Claim Checker, a Python tool that asks Google's open-weight Gemma model for a quick, provisional assessment of a claim. It's meant to reduce the first round of research, not replace checking the sources."
+### 0:00–0:15 — What this is
 
-**0:13–0:40 — Actual live check. Show this command and its real JSON output:**
+**On screen:** Terminal and repository name. **Read verbatim:**
+
+> "This is Claim Checker, a Python prototype I directed and tested with coding-agent help. It asks Google's open-weight Gemma model for a first-pass assessment of a claim."
+
+### 0:15–0:49 — Show actual Gemma output
+
+**On screen:** Run this **one live call**. It may take longer than expected; don't automatically retry and don't replace its output with a fabricated example.
 
 ```bash
 python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it --claim "Earth is the third planet from the Sun." --json
 ```
 
-Read **only if the provider really returns a valid card while filming**:
+**Only if a real JSON card appears:** point to `verdict`, `evidence_ids`, and `what_would_settle_it`. **Read:**
 
-> "That's a real Gemma 4 response, served through Google's API. Notice the answer is UNVERIFIABLE. The model knows many facts, but because I supplied no independently reviewed evidence, the program refuses to certify this claim as true."
+> "I chose an obvious claim on purpose. Gemma returns UNVERIFIABLE because I didn't give it reviewed sources. The useful part is 'what would settle it'—a suggestion for the kind of evidence to find next. It's a starting point, not a fact-check."
 
-If live access fails while filming, **do not claim a successful fresh inference**. You may instead show the **authentic October 23 recorded terminal receipt** in a clearly titled *previous live run* shot, saying:
+The specific wording in `what_would_settle_it` may change on another run. Show what the model *actually* returned; don't read invented quotes or assert a different verdict.
 
-> "Here is the actual result captured in my earlier Mac run. This is a recorded Gemma response, not one of the offline mocks."
+### 0:49–1:10 — Demonstrate the safeguards
 
-A prior terminal output is evidence of past runtime success, but challenge judges may prefer a newly recorded working session. Do not substitute a synthetic JSON file as live output.
-
-**0:40–1:04 — Contract tests. Show actual commands/results at recording time:**
+**On screen:** Show brief **actual** test summaries, not dozens of scrolling lines. These are offline tests:
 
 ```bash
-python3 evals/run_eval.py -v
-python3 -m unittest discover -s evals -p 'test_*.py' -v
+python3 evals/run_eval.py | tail -n 9
+python3 -m unittest discover -s evals -p 'test_*.py' -q
 ```
 
-Read if actual results match the prior receipt:
+**Only if the current results pass as expected, read:**
 
-> "The mock evaluation passes 23 checks, and the Python regression suite passes 34 tests. Those measure app behavior, including wrong-model and invented-source rejection. They're not a factual-accuracy benchmark."
+> "I got 23 passing mock and validation checks and 34 passing unit tests. They test things like fake source IDs and the wrong model. They don't measure real-world fact-checking accuracy."
 
-If actual totals differ, read the **actual** totals, not the historical numbers.
+If results differ, state the **actual** counts and preserve any failure; do not edit the footage to imply a pass.
 
-**1:04–1:25 — Tradeoff and limits. Show README's limitations and source rules. Read:**
+### 1:10–1:30 — Open-weight benefit, limits and finish
 
-> "The model runs remotely, so this needs an internet connection. When sources haven't been reviewed, the tool doesn't manufacture citations. The next step would be safe, automatic source collection, but that isn't in this challenge version."
+**On screen:** Leave the card visible; briefly point to the model and disclosure fields. **Read:**
 
-**Optional closing (only if under 90 seconds):**
+> "Gemma is open-weight, but this demo uses Google's hosted API, so it needs internet and sends the claim to Google. It doesn't collect or verify sources automatically, and I haven't measured time saved. It does tell me what to check next."
 
-> "The real benefit is knowing what evidence to find next."
+## If the live call fails while filming
 
-## Record and publish gate
+**Do not say that the fresh call succeeded.** Stop filming or label a separate **“Earlier successful run — October 23”** shot with the [authentic terminal receipt](https://github.com/KyPython/claim-checker-local/blob/audit/release-hardening-2026-10-22/docs/LIVE_GEMMA_RECEIPT_2026-10-23.md). Exact fallback narration:
 
-- [x] Actual Mac 23/23 offline mocks, 34/34 unittests, and exact `gemma-4-26b-a4b-it` live JSON result received on Oct 23 at `6e0c2d5`
-- [ ] Confirm provider project/usage/cost and account privacy constraints
-- [ ] Record and review authentic 60–90s screen demo, edit out credentials/account data; obtain actual video URL
-- [ ] Add the video URL to [unpublished DEV article](DEV_WEEK3_SUBMISSION_DRAFT.md), correct any differences from actual footage
-- [ ] Verify signed-in DEV Week 3 submission availability, personal eligibility, timing, and article owner approval
-- [ ] Publish once, keep resulting public DEV URL and entry receipt
-- [ ] Separately approve any merge into `main`; do not make contest publication contingent on falsely marking unreviewed evidence as verified
+> "This attempt didn't return a usable card. Here is the successful Gemma response captured from an earlier Mac run, separate from the offline test fixtures."
 
-**Official:** https://dev.to/challenges/hacktoberfest-week3-2026-10-19 . The challenge hub says Week 3 is live while the individual Week 3 page displays "Live Ended"; verify the signed-in entry form rather than assuming either label is conclusive.
+A displayed earlier terminal log is not the same as an on-camera live request. Do not imply that it meets every possible judge's demo expectation. No paid fallback or unattended retry.
+
+## After recording
+
+1. Stop recording with the macOS menu bar control. **Off camera**, run `unset GEMINI_API_KEY` and close the session.
+2. Watch the entire clip. Check that all spoken claims match visible results; edit out credentials or private account screens. If the call stalls, edit for length **without** presenting a historical result as if live.
+3. Save the final video link in the [unpublished DEV draft](https://github.com/KyPython/claim-checker-local/blob/audit/release-hardening-2026-10-22/docs/DEV_WEEK3_SUBMISSION_DRAFT.md). Confirm signed-in contest submission access before publication.
+
+## Release checklist — evidence only
+
+- [x] Mac compiled; 23/23 offline checks and 34/34 unit tests passed at `6e0c2d5`
+- [x] A true Google Gemma 4 26B response passed app validation and returned no-source `UNVERIFIABLE`
+- [ ] Account/project free-tier eligibility and **actual usage/cost** independently reviewed
+- [ ] Actual screen-recording completed, inspected and linked
+- [ ] Signed-in DEV Week 3 entry access and eligibility confirmed
+- [ ] Owner reviews and approves article and submits once; resulting DEV URL recorded
+- [ ] Any `main` merge approved and separately verified
+- [ ] Source-fixture review / factual accuracy stays **unverified** until independently assessed
+
+**Official competition page:** https://dev.to/challenges/hacktoberfest-week3-2026-10-19 . It lists the October 25 submission date and permits Gemma served by another provider. The page currently shows “Live Ended,” so actual signed-in submission availability must be checked; the recording script cannot resolve that status.
+
+**Editorial review coverage:** Notion source/provenance check; Compound Engineering coherence, feasibility and security *principles* (not an independent subagent panel); Compound Writing developmental edit, first-time viewer read, line edit, AI-residue pass, and final-pass check. Spoken words were tightened without changing observed facts.
