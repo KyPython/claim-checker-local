@@ -1,6 +1,19 @@
 # Implementation tasks — claim-checker-local (Kiro-style SPEC v2)
-Status: **PLANNED ONLY. Do not check an item off without the corresponding real execution receipt.**
+Status: **PARTIALLY EXECUTED — Mac-verified CLI and genuine Gemma 4 model inference at `6e0c2d5` on Oct 23. No final video, cost receipt, source/oracle human review, merge or published DEV submission yet.** Do not check any remaining item off without the corresponding real execution receipt.
 Source of truth: [issue #1](https://github.com/KyPython/claim-checker-local/issues/1); [requirements](./requirements.md); [design](./design.md). Deadline: Oct 25, 2026 11:59 PM PDT (Oct 26 02:59 AM ET).
+
+## Latest observed acceptance — October 23, 2026 (overrides earlier PENDING runtime statements)
+
+- [x] **A1/A3/A4/A6/A8 local contract subset:** owner Mac Python compile returned success; deterministic mock suite **23/23**; unit tests **34/34** at code SHA `6e0c2d5`.
+- [x] **A2 one real model request:** `python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it --claim "Earth is the third planet from the Sun." --json` returned a **schema-valid** JSON `UNVERIFIABLE` card, `provider=google`, `model=gemma-4-26b-a4b-it`, `evidence_ids=[]` on owner Mac. This is actual hosted Gemma inference and demonstrates a single safe no-evidence path.
+- [x] **Failure recovery contract:** previous Google HTTP 400 and multi-part parsing failures did not trigger unapproved retries/paid substitutions; new fail-closed parser regression tests passed.
+- [ ] **Cost/entitlement evidence:** Google's public free-only token price does not itself establish actual $0 use for this Google AI Studio project. Obtain redacted account/project usage evidence.
+- [ ] **A5 full golden-set accuracy/live batch:** unreviewed source/oracle fixtures remain blocked, not 8/8 verified factual calls; this does not invalidate the limited no-evidence live contract receipt.
+- [ ] **A11 working demo:** real successful terminal run exists, but the video still needs recording, review, and an embeddable URL. Follow [verbatim recording script](../../docs/DEMO_RECORDING_PLAN_2026-10-23.md).
+- [ ] **A12 challenge publication:** signed-in form, owner eligibility, final article review/approval and publication URL still missing. One submission only.
+- [ ] **Release/merge:** independent review and owner merge authorization; status remains **HOLD**.
+
+Evidence: [sanitized real-model receipt](../../docs/LIVE_GEMMA_RECEIPT_2026-10-23.md). The later documentation commits do not invalidate the code-SHA tests; rerun tests for any further **runtime code changes** before release.
 
 ## Ownership and execution boundaries
 
@@ -77,9 +90,9 @@ This plan does not authorize API purchases, CI runs, automatic PRs, merges, depl
 - [x] Document official DEV rules: overall submission can use other qualifying open-source AI, but Best Use of Gemma requires Gemma; created challenge project remains separate from private original.
 - [x] Stage explicit allowlisted OpenRouter 31B free and Google native 26B/31B routes on current hardening PR branch; do not infer runtime success from commit.
 - [x] Stage ten new offline tests of exact model routing, no-key zero calls, Google modelVersion checks, schema and evidence gates; execution pending.
-- [ ] Re-run Python compilation, the original 23 offline mocks, all unittest files (previous 15 + new 10 = 25 unittest methods), record **current** SHA with exit status. Never claim pre-change passes cover the new code.
+- [x] Executed on Mac at SHA `6e0c2d5`: Python compilation, **23/23** offline mocks, **34/34** unittests; includes the additional post-25 Google response parsing tests.
 - [ ] Verify AI Studio Gemma free-tier project and quotas without giving keys to agent. Google free-tier data-use disclosure remains mandatory.
-- [ ] Attempt exactly one explicitly authorized live Google Gemma 4 call (no private claim), verify exact returned modelVersion/UNVERIFIABLE card, usage/billing and capture a sanitized receipt. On HTTP 429/missing modelVersion/HTTP error, STOP and maintain BLOCKED.
+- [x] One valid real Google Gemma 4 26B inference generated a contract-valid `UNVERIFIABLE` card at `6e0c2d5`. [Receipt](../../docs/LIVE_GEMMA_RECEIPT_2026-10-23.md). **Billing/usage proof is separate and still pending.**
 - [ ] Only with a real model result, record actual 60–90s functional demo; no simulated verdict or synthetic input as purported real inference.
 - [ ] Complete source/oracle review for any case claimed TRUE/FALSE/MISLEADING; keep false flags otherwise. Eight live-case evaluation remains pending under existing A5 gate.
 - [ ] Confirm DEV signed-in submission template, owner eligibility and publication authorization; publish once before October 25 11:59 PM PDT, record actual URL. Release blocked until all applicable gates have receipts.
@@ -92,6 +105,6 @@ No CI, PR merge, paid call, public deployment or contest submission is authorize
 - [x] At tested SHA `249e900`: Python compile pass; deterministic mock **23/23**; unittest discovery **25/25**.
 - [x] Exactly two manually initiated Google native Gemma 4 26B calls observed: first **HTTP 400**; second reached response parser with matching modelVersion but no single usable final text candidate. **These are attempted calls, not validated verdicts**.
 - [x] Stage corrective Google multipart final-text extraction, thought-only/cutoff rejection, minimal-thinking configuration and sanitized 400 category. Additional new tests are staged.
-- [ ] Run all current Python offline checks at latest SHA, record totals and no-network behavior. Old 25/25 results do not verify new code.
-- [ ] Verify Google AI Studio project free-tier entitlement, then make at most one separately authorized new live Gemma call; confirm exact identity, card, and cost. If blocked, stop without automatic fallback.
+- [x] All current code regression checks at SHA `6e0c2d5`: 23/23 offline checks, 34/34 unittests, and Python compilation passed.
+- [x] Actual Google-hosted Gemma 4 26B card returned with exact validated model identity and no evidence. [x] Owner submitted claim privately through hidden-key environment procedure. [ ] Confirm separate project free-tier entitlement and per-request cost; **no more calls required for this narrow live-path receipt**.
 - [ ] Human source/oracle review, actual live screen demo, DEV signed-in form, publication approval and receipt still pending.
