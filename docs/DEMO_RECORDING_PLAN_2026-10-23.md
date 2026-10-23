@@ -1,79 +1,74 @@
-# Claim Checker — screen-recording plan and exact narration (2026-10-23)
+# Claim Checker — 60–90-second contest demo filming script
 
-**Status:** Production Gemma demo cannot be recorded as successful while OpenRouter returns 429. This is an **engineering walkthrough only**, not the official A11 live-model acceptance demo. Keep the filmed truth separate from mocked tests. No API key on screen. Record no actual private claims or paid calls.
+**Updated October 23, 2026 after the first genuine Gemma 4 26B inference.**
 
-## Clip A — truthful engineering preview, 75–90 seconds (can record now)
+**Observed proof:** On Mac at tested code `6e0c2d5`, compilation completed, offline mocks **23/23** passed, Python unittests **34/34** passed, and Google-hosted `gemma-4-26b-a4b-it` returned a real validated JSON card: `UNVERIFIABLE` with no evidence. [Exact sanitized receipt](LIVE_GEMMA_RECEIPT_2026-10-23.md). The live functionality gate is cleared; **screen recording is not yet evidenced**. The tests do not certify independent factual accuracy. Never show private keys, accounts, sensitive claims or paid billing details.
 
-Screen: Terminal in `~/claim-checker-local` on `audit/release-hardening-2026-10-22`, no secret entry shown. Make terminal font readable.
+## Prepare once, before starting screen recording
 
-**0:00–0:12 — Face/voice or a title slide. Read verbatim:**
-"I built a small claim-triage CLI for Hacktoberfest's Slow and Steady challenge. The goal is one structured first pass instead of having to invent the research checklist yourself."
-
-**0:12–0:25 — Show `python3 claimcheck.py --help`. Read:**
-"The project is Python standard library only. It accepts a claim, produces a structured provisional card, and reserves decisive claims for evidence that has actually been reviewed."
-
-**0:25–0:48 — Run `python3 evals/run_eval.py -v`. Read:**
-"These are deterministic mocks, not Gemma outputs. Eight fixture contracts and fifteen synthetic error cases passed on my Mac, including rejecting invented evidence IDs and the wrong model."
-
-**0:48–1:02 — Run `python3 -m unittest discover -s evals -p 'test_*.py' -v`. Read:**
-"The regression suite also checks strict model and provider identity, and rejects unreviewed evidence rather than inventing a confident fact-check. Show the actual passing test count on screen; don't claim an unrun test has passed."
-
-**1:02–1:19 — Show the README fixed-model and error-handling sections, not a fabricated verdict. Read:**
-"The intended runtime is Google's open-weight Gemma 4, through an explicitly selected free provider. OpenRouter returned HTTP 429, and Google's direct service still needs a real test. I have not yet recorded a successful Gemma verdict."
-
-**1:19–1:29 — Show `docs/DEV_WEEK3_SUBMISSION_DRAFT.md` with unpublished status. Read:**
-"That limit is part of the engineering story. I will not pass off simulated outputs as a real model demonstration or switch to a paid route."
-
-If recording at normal cadence exceeds 90 seconds, shorten pauses, not disclosures. Avoid any screen showing `OPENROUTER_API_KEY`, an API-key value, sensitive prompts or local personal files.
-
-## Clip B — official A11 Gemma proof (HOLD until actual success)
-
-**Prerequisites:** A verified free-tier provider route, private key, one owner-approved call, exact returned model identity, and no paid fallback. The Google native route is an allowed alternative to OpenRouter. Never automatically retry.
-
-Record the **actual** `python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it --claim "Earth is the third planet from the Sun." --json` result, or a different explicitly selected allowed free Gemma route if that is what was truly run. Inspect returned model identity and `UNVERIFIABLE` semantics (no source supplied). Capture the selected provider\'s usage/project tier and recorded cost; hide account details.
-
-Verbatim narration *only if actually observed*:
-"Now this is a real Gemma response from the exact free endpoint. Because I supplied no independently reviewed evidence, the app allows only an UNVERIFIABLE provisional card, not a confident claim of truth. Here is the model identifier and the actual recorded usage cost."
-
-If the response is HTTP 429/401/other failure, do **not** read the success script. Read instead: "The provider refused the call, and the app failed closed. No live Gemma verdict was produced."
-
-## Release checklist
-
-- [x] Mac mock 23/23, unittest 15/15, compile no error (owner terminal output; exact SHA 70dbf31).
-- [x] API-key status check returned HTTP 200; never include key.
-- [ ] One real successful Gemma response on exact `:free` route with safe model identity.
-- [ ] Per-call cost record shows zero and no alternative paid provider.
-- [ ] Human review of source excerpts/ground-truth labels or explicitly exclude uncertain cases.
-- [ ] Approved demo linked/embedded in DEV template and authenticated submission access verified.
-- [ ] Owner approves final publication; published DEV entry receipt is recorded.
-
-Reference: [issue #1](https://github.com/KyPython/claim-checker-local/issues/1); [hardening PR #2](https://github.com/KyPython/claim-checker-local/pull/2); [official challenge](https://dev.to/challenges/hacktoberfest-week3-2026-10-19). Do not copy code from the private original project.
-
-
-## Approved alternate real-model route (added 2026-10-23)
-
-The recording no longer depends uniquely on OpenRouter. The repo now stages an **explicit Google-hosted Gemma 4** route. When the owner confirms their AI Studio **free-tier** project, obtains a key privately, pulls the current hardening branch and runs the offline checks, the proposed **single** live call is:
+1. Open Terminal in `~/claim-checker-local` with large text, hide notifications and other windows. Check out `audit/release-hardening-2026-10-22`. Pull the current branch if not already current; documentation-only commits after `6e0c2d5` do not change model behavior.
+2. Confirm your **Google AI Studio project is free-tier** and review actual past request usage/cost. Google's published free token price is **not** an account-specific charge receipt.
+3. To film a **fresh call**, privately enter and export the key **before recording**, not during the video:
 
 ```bash
-cd "$HOME/claim-checker-local"
-git fetch origin audit/release-hardening-2026-10-22
-git switch audit/release-hardening-2026-10-22
-git pull --ff-only
-python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py evals/test_release_gate.py evals/test_provider_routing.py
-python3 evals/run_eval.py -v
-python3 -m unittest discover -s evals -p 'test_*.py' -v
 read -rs "GEMINI_API_KEY?Google AI Studio key (hidden): "
 echo
 export GEMINI_API_KEY
-python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it --claim "Earth is the third planet from the Sun." --json
-unset GEMINI_API_KEY
 ```
 
-Only after real-model response, modelVersion and provider usage are verified may Clip B be recorded with a truthful claim of live Gemma operation. If the response fails, preserve a failure clip as such; don't read the success narration or claim the Best Use of Gemma integration was exercised. Google free-tier data use/remote processing must be mentioned in the DEV post. No provider auto-retry or billing upgrades.
+4. Never film a key value, billing info, developer tokens, `env` output, or another person's claim. After the recording, run `unset GEMINI_API_KEY`. The CLI never automatically retries or switches to a paid model.
 
+## Main demo — verbatim narration and actual commands (target 75–90 seconds)
 
-## October 23 Mac verification update — read before recording
+**0:00–0:13 — Title & purpose. Show repository name and terminal. Read:**
 
-At SHA `249e900`, Mac compile and offline tests passed (**23/23 mock; 25/25 unittest**). Google direct inference #1 returned HTTP 400 and #2 returned a response with matching modelVersion but **no usable final text card** under the older parser. The parser was corrected afterward but the new head has **not** been rerun. For Clip A, reflect the **25-unit-test** count only when showing that earlier run; on a new recording show the **actual new** result. Never say Google has not been attempted: say \"Google reached the model response path but did not produce a validated claim card yet.\"
+> "I built Claim Checker, a Python tool that asks Google's open-weight Gemma model for a quick, provisional assessment of a claim. It's meant to reduce the first round of research, not replace checking the sources."
 
-The next required action is **only** to pull and run offline tests. A follow-up Google inference must be a separate manually approved one-call action after verifying free-tier project status. If it still fails, do not splice a mock into a supposed live result.
+**0:13–0:40 — Actual live check. Show this command and its real JSON output:**
+
+```bash
+python3 claimcheck.py --provider google --model gemma-4-26b-a4b-it --claim "Earth is the third planet from the Sun." --json
+```
+
+Read **only if the provider really returns a valid card while filming**:
+
+> "That's a real Gemma 4 response, served through Google's API. Notice the answer is UNVERIFIABLE. The model knows many facts, but because I supplied no independently reviewed evidence, the program refuses to certify this claim as true."
+
+If live access fails while filming, **do not claim a successful fresh inference**. You may instead show the **authentic October 23 recorded terminal receipt** in a clearly titled *previous live run* shot, saying:
+
+> "Here is the actual result captured in my earlier Mac run. This is a recorded Gemma response, not one of the offline mocks."
+
+A prior terminal output is evidence of past runtime success, but challenge judges may prefer a newly recorded working session. Do not substitute a synthetic JSON file as live output.
+
+**0:40–1:04 — Contract tests. Show actual commands/results at recording time:**
+
+```bash
+python3 evals/run_eval.py -v
+python3 -m unittest discover -s evals -p 'test_*.py' -v
+```
+
+Read if actual results match the prior receipt:
+
+> "The mock evaluation passes 23 checks, and the Python regression suite passes 34 tests. Those measure app behavior, including wrong-model and invented-source rejection. They're not a factual-accuracy benchmark."
+
+If actual totals differ, read the **actual** totals, not the historical numbers.
+
+**1:04–1:25 — Tradeoff and limits. Show README's limitations and source rules. Read:**
+
+> "The model runs remotely, so this needs an internet connection. When sources haven't been reviewed, the tool doesn't manufacture citations. The next step would be safe, automatic source collection, but that isn't in this challenge version."
+
+**Optional closing (only if under 90 seconds):**
+
+> "The real benefit is knowing what evidence to find next."
+
+## Record and publish gate
+
+- [x] Actual Mac 23/23 offline mocks, 34/34 unittests, and exact `gemma-4-26b-a4b-it` live JSON result received on Oct 23 at `6e0c2d5`
+- [ ] Confirm provider project/usage/cost and account privacy constraints
+- [ ] Record and review authentic 60–90s screen demo, edit out credentials/account data; obtain actual video URL
+- [ ] Add the video URL to [unpublished DEV article](DEV_WEEK3_SUBMISSION_DRAFT.md), correct any differences from actual footage
+- [ ] Verify signed-in DEV Week 3 submission availability, personal eligibility, timing, and article owner approval
+- [ ] Publish once, keep resulting public DEV URL and entry receipt
+- [ ] Separately approve any merge into `main`; do not make contest publication contingent on falsely marking unreviewed evidence as verified
+
+**Official:** https://dev.to/challenges/hacktoberfest-week3-2026-10-19 . The challenge hub says Week 3 is live while the individual Week 3 page displays "Live Ended"; verify the signed-in entry form rather than assuming either label is conclusive.
