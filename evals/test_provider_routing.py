@@ -14,6 +14,7 @@ def google_reply(model="gemma-4-26b-a4b-it", verdict="UNVERIFIABLE", evidence_id
     return {
         "modelVersion": model,
         "candidates": [{
+            "finishReason": "STOP",
             "content": {"parts": [{"text": json.dumps({
                 "verdict": verdict,
                 "rationale": "No reviewed source was provided.",
@@ -109,6 +110,7 @@ class ProviderRoutingTests(unittest.TestCase):
         self.assertNotIn("Authorization", headers)
         self.assertEqual(headers["x-goog-api-key"], "offline-test-only")
         self.assertNotIn("model", body)
+        self.assertEqual(body["generationConfig"]["thinkingConfig"]["thinkingLevel"], "minimal")
         self.assertEqual(timeout, claimcheck.TIMEOUT_SECONDS)
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
@@ -135,6 +137,89 @@ class ProviderRoutingTests(unittest.TestCase):
         mock = CaptureClient(google_reply(verdict="TRUE"))
         with self.assertRaises(claimcheck.ResponseValidationError):
             claimcheck.check_claim("A test claim", client=mock, provider="google")
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_multipart_thoughts_are_never_a_verdict(self):
+        payload = json.dumps({
+            "verdict": "UNVERIFIABLE",
+            "rationale": "No reviewed source supplied.",
+            "what_would_settle_it": "A reviewed public source.",
+            "evidence_ids": [],
+        })
+        midpoint = len(payload) // 2
+        raw = google_reply()
+        raw["candidates"][0]["content"]["parts"] = [
+            {"thought": True, "text": "SENSITIVE_THOUGHT_NOT_A_VERDICT"},
+            {"text": payload[:midpoint]},
+            {"text": payload[midpoint:], "thoughtSignature": "opaque-sample"},
+        ]
+        mock = CaptureClient(raw)
+        card = claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertEqual(card["verdict"], "UNVERIFIABLE")
+        self.assertNotIn("SENSITIVE_THOUGHT", card["rationale"])
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_thought_only_response_blocks_without_leaking_thought(self):
+        secret = "SENSITIVE_PROVIDER_THOUGHT_CONTENT"
+        raw = google_reply()
+        raw["candidates"][0]["content"]["parts"] = [{"text": secret, "thought": True}]
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertNotIn(secret, str(raised.exception))
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_truncated_response_is_never_a_verdict(self):
+        raw = google_reply()
+        raw["candidates"][0]["finishReason"] = "MAX_TOKENS"
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertIn("MAX_TOKENS", str(raised.exception))
+        self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_blocked_candidate_never_passes(self):
+        raw = google_reply()
+        raw["candidates"][0]["finishReason"] = "SAFETY"
+        raw["candidates"][0]["finishMessage"] = "PRIVATE_UNTRUSTED_PROVIDER_TEXT"
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertIn("SAFETY", str(raised.exception))
+        self.assertNotIn("PRIVATE_", str(raised.exception))
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_empty_and_multiple_candidates_fail_closed(self):
+        for candidates in ([], [google_reply()["candidates"][0]] * 2):
+            raw = google_reply()
+            raw["candidates"] = candidates
+            mock = CaptureClient(raw)
+            with self.subTest(count=len(candidates)):
+                with self.assertRaises(claimcheck.MalformedResponseError):
+                    claimcheck.check_claim("A test claim", client=mock, provider="google")
+                self.assertEqual(len(mock.calls), 1)
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_nontext_final_part_is_rejected(self):
+        raw = google_reply()
+        raw["candidates"][0]["content"]["parts"].append(
+            {"functionCall": {"name": "malicious", "args": {}}}
+        )
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError):
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True)
+    def test_google_missing_finish_reason_is_not_a_success(self):
+        raw = google_reply()
+        del raw["candidates"][0]["finishReason"]
+        mock = CaptureClient(raw)
+        with self.assertRaises(claimcheck.MalformedResponseError) as raised:
+            claimcheck.check_claim("A test claim", client=mock, provider="google")
+        self.assertIn("UNSPECIFIED", str(raised.exception))
 
     def test_invalid_model_causes_zero_calls_even_with_key(self):
         with patch.dict(os.environ, {"GEMINI_API_KEY": "offline-test-only"}, clear=True):
