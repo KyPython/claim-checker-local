@@ -1,6 +1,6 @@
 # claim-checker-local
 
-**Status (October 23, 2026):** Owner Mac independently ran the code at SHA `70dbf31`: **23/23 offline mocks**, **15/15 unittests**, Python compilation succeeded. Authentication GET /api/v1/key returned HTTP **200**, but live Gemma requests returned **401/429** with **no successful inference**. A subsequent explicit free-Gemma provider/model routing change and eight additional routing tests are now committed **but unexecuted**. Source evidence has not been human-adjudicated, and no actual Gemma demo or DEV publication is verified. **NOT READY FOR FINAL RELEASE.**
+**Status (October 23, 2026):** Owner Mac independently ran the code at SHA `70dbf31`: **23/23 offline mocks**, **15/15 unittests**, Python compilation succeeded. Authentication GET /api/v1/key returned HTTP **200**, but live Gemma requests returned **401/429** with **no successful inference**. A subsequent explicit free-Gemma provider/model routing change and ten additional routing tests are now committed **but unexecuted**. Source evidence has not been human-adjudicated, and no actual Gemma demo or DEV publication is verified. **NOT READY FOR FINAL RELEASE.**
 
 A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** through an explicitly selected free-only provider, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
 
@@ -170,7 +170,7 @@ evals/
     claims.json            # 8 golden evaluation cases
     evidence.json          # Curated evidence excerpts with provenance
     run_eval.py            # Mock + opt-in live evaluation runner
-    test_provider_routing.py # Eight new offline route tests (pending execution)
+    test_provider_routing.py # Ten new offline route tests (pending execution)
 specs/
     claim-checker-local/
         requirements.md    # R01–R12 requirements (EARS format)
