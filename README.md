@@ -1,6 +1,6 @@
 # claim-checker-local
 
-**Status (October 23, 2026):** Owner Mac independently ran the code at SHA `70dbf31`: **23/23 offline mocks**, **15/15 unittests**, Python compilation succeeded. Authentication GET /api/v1/key returned HTTP **200**, but live Gemma requests returned **401/429** with **no successful inference**. A subsequent explicit free-Gemma provider/model routing change and ten additional routing tests are now committed **but unexecuted**. Source evidence has not been human-adjudicated, and no actual Gemma demo or DEV publication is verified. **NOT READY FOR FINAL RELEASE.**
+**Status (October 23, 2026, 2:48 PM ET):** At Mac-verified code SHA `249e900`, Python compilation passed, the offline evaluation passed **23/23**, and unittest discovery passed **25/25** (twice observed in the terminal log). Google Gemma live requests were made: first **HTTP 400**, second returned a response with the exact model identity but failed to yield a usable final text candidate. **No successful verdict card or zero-cost usage receipt** yet. After these receipts, the Google response adapter was hardened to parse multipart final answers, ignore thinking-only parts, reject non-STOP finish reasons, request minimal thinking, and provide safe 400 diagnostics. **That newer code and its additional tests have NOT yet been run on the owner's Mac.** Human source review and the DEV final demo/submission remain pending. **NOT FINAL RELEASE.**
 
 A small **Python claim-triage CLI** for the [DEV Hacktoberfest Open-Source AI Challenge, Week 3 — Slow and Steady](https://dev.to/challenges/hacktoberfest-week3-2026-10-19), with the **Best Use of Gemma** category as a conditional entry. The runtime sends a claim to **cloud-hosted open-weight Gemma** through an explicitly selected free-only provider, returning an **AI-generated, preliminary** verdict card with honest `UNVERIFIABLE` handling. **It is not a source-grounded, authoritative fact checker without reviewed evidence.**
 
@@ -90,12 +90,31 @@ python3 evals/run_eval.py --live
 python3 evals/run_eval.py --live --provider google --model gemma-4-26b-a4b-it
 ```
 
+
+### October 23 live-response parsing correction
+
+Your Mac test on SHA `249e900` demonstrated successful Python compilation, **23/23** deterministic checks, and **25/25** unittests. The first Google API request returned HTTP **400**. The next returned an HTTPS response whose `modelVersion` matched `gemma-4-26b-a4b-it` but whose content failed the older one-text-part parser. Without the raw protected response we cannot know whether it contained multiple parts, only thinking, or a non-STOP `finishReason`.
+
+**New unexecuted corrections:** accept multiple final text chunks, skip `thought=true` parts, allow only one candidate with `finishReason=STOP`, reject missing/nontext/truncated/blocked output, configure Google `thinkingLevel=minimal`, and classify Google 400 errors using only safe allowlisted status enums. Neither provider messages nor thought content are printed. Google documentation: https://ai.google.dev/api/generate-content and https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api . **Do not treat the prior response or mock output as a real verified verdict.**
+
+To validate the new head, re-run exactly:
+
+```bash
+cd "$HOME/claim-checker-local"
+git pull --ff-only
+python3 -m py_compile claimcheck.py evals/run_eval.py evals/test_release_contract.py evals/test_release_gate.py evals/test_provider_routing.py
+python3 evals/run_eval.py -v
+python3 -m unittest discover -s evals -p 'test_*.py' -v
+```
+
+No key, network, inference, or billing is needed for these tests. Only after they pass and the selected Google AI Studio project is confirmed free-tier should another **single manually authorized** Gemma request be attempted. It could still fail; preserve and report the result, do not retry automatically.
+
 ## How it works
 
 1. **Input validation**: Accepts a single claim via `--claim` or stdin. Trims whitespace, enforces 2,000-character limit, rejects blank input.
 2. **Evidence loading** (optional): Reads a curated JSON evidence file with reviewed source excerpts.
 3. **Prompt construction**: Builds a structured prompt with the claim as DATA (not instructions) and any supplied evidence.
-4. **Inference**: Sends exactly one HTTPS request to `https://openrouter.ai/api/v1/chat/completions` with the fixed model `google/gemma-4-26b-a4b-it:free`.
+4. **Inference**: Sends exactly one HTTPS request to the explicitly selected allowlisted free Gemma provider/model. Default is OpenRouter 26B `:free`; Google native Gemma 4 26B/31B are approved manual options. No fallback or retries.
 5. **Response validation**: Strictly validates the response JSON: enum verdict, non-empty rationale, evidence IDs only from supplied sources, **exact free model tag** (missing/stripped :free fails), and sanitization of malformed model-output errors.
 6. **Grounding rule**: A confident verdict requires cited evidence IDs with explicit `verified_by_human=true` source declarations and complete basic metadata. Unreviewed fixtures cannot produce a confident card. **Important:** local review flags are user assertions, not cryptographic or semantic proof that the evidence is true, timely, authentic or logically entails a verdict. Human source/adjudication checks remain necessary.
 
@@ -133,16 +152,16 @@ The evaluation suite (`evals/run_eval.py`) includes:
 - **8 candidate verdict cases**: 3× TRUE, 2× FALSE, 1× MISLEADING, 2× UNVERIFIABLE. The disputed ocean case was corrected to TRUE. All eight `provenance_reviewed` flags remain false pending actual review.
 - **11 error-handling tests**: HTTP 401/402/429/500, timeout, unreachable, malformed JSON, wrong model, missing fields, fabricated source IDs, confident verdict without evidence
 - **4 input validation tests**: blank claim, too-long claim, null claim, missing API key
-- **12 new strict-model/provenance/error-sanitization contract tests** staged for independent execution (not yet run)
+- **At SHA 249e900:** 25/25 owner-run unittests, including 10 provider-route tests; newer multipart/finish-reason/400-diagnostic tests pending rerun.
 
-**Historical coding-agent-reported mock results on pre-hardening main (23/23; independent rerun still required; NOT proof of factual accuracy):**
+**Owner-observed mock contract result at SHA `249e900` (October 23, 2026; not proof of factual accuracy):**
 ```
 Mock verdict cases: 8/8 passed
 Validation tests: 15/15 passed
 Total: 23/23 passed
 ```
 
-Release hardening at SHA 70dbf31: **EXECUTED on Mac (23/23 mocks; 15/15 unittests)**. New provider-routing code/tests after that SHA: **NOT YET EXECUTED.** With existing review flags false, positive mock cases now verify that confident model responses are rejected, rather than certifying truth. Live Gemma test results: **PENDING** — requires owner opt-in with a verified free API key. Live golden sourced cases are blocked until the person reviewing them actually approves the evidence. Do not represent mock verdict outputs as runtime inference or factual accuracy.
+Release hardening and provider-routing at SHA 249e900: **EXECUTED on Mac (23/23 mocks; 25/25 unittests; compile passed)**. Subsequent Google multipart/finish-reason/400-diagnostic corrections and their new tests are **NOT YET EXECUTED**. With existing review flags false, positive mock cases now verify that confident model responses are rejected, rather than certifying truth. Live Gemma verdict results: **BLOCKED** — Google request #1 HTTP 400; Google request #2 passed response model identity but the adapter could not extract a single usable text candidate. No validated verdict yet. Live golden sourced cases are blocked until the person reviewing them actually approves the evidence. Do not represent mock verdict outputs as runtime inference or factual accuracy.
 
 **Release blockers after code hardening (Oct 22):** Response model must now match the exact `:free` tag; a provider that reports a base-model alias (or omits the field) will cause a safe failure, and actual billing-route verification is still needed. Evidence human-review flags and claim provenance remain false. Case 06 was relabeled TRUE, but sources have not been independently human-adjudicated. The first hardening code SHA 70dbf31 was actually run on the owner's Mac (23 mocks plus 15 unittests passed); the newer provider-routing changes have NOT been run there. Unrelated or contradictory evidence is not semantically proven safe by schema validation; human review remains essential. See issue #1. Draft DEV post (NOT to publish as-is): [docs/DEV_WEEK3_SUBMISSION_DRAFT.md](docs/DEV_WEEK3_SUBMISSION_DRAFT.md).
 
@@ -156,7 +175,7 @@ Release hardening at SHA 70dbf31: **EXECUTED on Mac (23/23 mocks; 15/15 unittest
 ## Privacy and limitations
 
 > **⚠ Important:**
-> - Claim text is sent to a **remote inference provider** (OpenRouter → Gemma). Do not submit secrets, confidential information, or sensitive personal data.
+> - Claim text is sent to the selected **remote inference provider** (OpenRouter or Google's Gemini API → Gemma). Do not submit secrets, confidential information, or sensitive personal data.
 > - This tool does **not** claim offline operation, end-to-end privacy, or zero provider retention.
 > - Results are **AI-generated preliminary assessments**, not medical, legal, or financial advice.
 > - Real-model outputs are **provisional**, not independent fact-checks.
@@ -170,7 +189,7 @@ evals/
     claims.json            # 8 golden evaluation cases
     evidence.json          # Curated evidence excerpts with provenance
     run_eval.py            # Mock + opt-in live evaluation runner
-    test_provider_routing.py # Ten new offline route tests (pending execution)
+    test_provider_routing.py # Current Google response + 400 regressions (rerun pending)
 specs/
     claim-checker-local/
         requirements.md    # R01–R12 requirements (EARS format)
