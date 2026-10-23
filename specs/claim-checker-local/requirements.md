@@ -61,3 +61,16 @@ No local AI installation, no Ollama, offline model, live search/citation crawler
 - Required owner decision for PR push/merge, public announcement, model/provider substitution or purchases.
 
 **Nothing in this document constitutes a passing test or permission to deploy.**
+
+
+## Amendment — 2026-10-23 owner-authorized free Gemma routing (supersedes exact-single-route clauses in R02/R08/R09)
+
+The owner explicitly authorized checking competition rules and using a different model to reach final release. The official Week 3 rules require **open-source AI at the core** for overall eligibility and **actual Gemma use** for the Best Use of Gemma partner category; no single Gemma parameter size or hosting provider is mandated. Sources: https://dev.to/page/hacktoberfest-week3-2026-10-19-contest-rules and https://dev.to/challenges/hacktoberfest-week3-2026-10-19 .
+
+**R02-A (manual allowlist):** WHEN an owner explicitly selects a provider/model, THE CLI SHALL permit only OpenRouter `google/gemma-4-26b-a4b-it:free` or `google/gemma-4-31b-it:free`, or Google native API `gemma-4-26b-a4b-it` or `gemma-4-31b-it`. The existing OpenRouter 26B route stays default for backwards-compatible mocks. No other model or provider is permitted. No automatic fallback, retry or cheapest-router feature is added.
+
+**R02-B (provider credentials/attestation):** WHEN OpenRouter is explicitly selected, require `OPENROUTER_API_KEY` and the exact returned `:free` model ID. WHEN Google native Gemma API is explicitly selected, require `GEMINI_API_KEY`, use documented `generateContent` HTTPS on the named allowlisted model, and require exact `modelVersion`. Keys are private and never persisted. A missing/mismatched model identity fails closed, not a successful verdict.
+
+**R02-C (price/privacy):** Google lists Gemma 4 inference input/output as free-only on https://ai.google.dev/gemini-api/docs/pricing , but the owner MUST independently verify their AI Studio project/quota before a call. Google free-tier requests may be used to improve its products. OpenRouter alternative still has account-wide 429 limitations. The owner authorizes **no paid subscription, billing upgrade, paid model, paid provider, or auto-switchover**.
+
+**Acceptance extension:** Mock-test every allowed and disallowed route, zero-call blocked paths, exact provider response model attestation, missing credentials, and provider HTTP/JSON failures. Re-run all old tests; only a real, sanitized, no-cost Gemma call and source-review evidence may close the existing A2/A5-live/A11 gates. **As of amendment, newly staged route tests and changed code are NOT YET EXECUTED.**
