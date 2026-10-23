@@ -143,6 +143,27 @@ class ProviderHTTPError(ClaimCheckError):
         super().__init__(f"Provider returned HTTP {status_code}")
 
 
+def safe_google_error_status(error_body: str) -> str | None:
+    """Return only an allowlisted Google error enum, never a free-form message.
+
+    Google error.message may contain submitted data or sensitive text. The
+    original body must not appear in CLI output or debug information.
+    """
+    if not isinstance(error_body, str):
+        return None
+    try:
+        payload = json.loads(error_body)
+        error = payload.get("error") if isinstance(payload, dict) else None
+        status = error.get("status") if isinstance(error, dict) else None
+    except (ValueError, TypeError):
+        return None
+    allowed = frozenset({
+        "INVALID_ARGUMENT", "FAILED_PRECONDITION", "RESOURCE_EXHAUSTED",
+        "PERMISSION_DENIED", "UNAUTHENTICATED", "NOT_FOUND", "UNAVAILABLE",
+    })
+    return status if isinstance(status, str) and status in allowed else None
+
+
 class ProviderUnreachableError(ClaimCheckError):
     """Network / DNS failure reaching provider."""
 
@@ -619,7 +640,11 @@ def main(argv: list[str] | None = None, client: HttpClient | None = None) -> int
         return 1
     except ProviderHTTPError as exc:
         status = exc.status_code
-        if status == 401:
+        if status == 400 and args.provider == "google":
+            category = safe_google_error_status(exc.body)
+            label = f"; {category}" if category else ""
+            msg = f"REQUEST FAILED: Google rejected the request (400{label}). No retry."
+        elif status == 401:
             msg = "REQUEST FAILED: Unauthorized (401). Check the selected provider key."
         elif status == 402:
             msg = "REQUEST FAILED: Payment required (402). Free endpoint may not be available."
